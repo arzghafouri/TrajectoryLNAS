@@ -151,6 +151,9 @@ def main_pipeline(
     search_effective_batch = search_cfg.batch_size * search_cfg.grad_accum_steps
     train_effective_batch = train_cfg.batch_size * train_cfg.grad_accum_steps
     active_checkpoint = train_cfg.save_path
+    active_batch_size = train_cfg.batch_size
+    searcher_obj = None
+    trainer_obj = None
 
     os.makedirs(report_dir, exist_ok=True)
     os.makedirs(os.path.join(report_dir, "plots"), exist_ok=True)
@@ -178,7 +181,7 @@ def main_pipeline(
     print(f" DARTS Search Epochs: {search_cfg.epochs} (Warmup: {getattr(search_cfg, 'warmup_epochs', 5)} epochs) | Final Retrain Ceiling: {train_cfg.epochs}")
     print(f" Reproducibility:     Seed = {getattr(search_cfg, 'seed', 42)} (100% Deterministic Execution)")
     print(f" Dataset Subsampling: {train_pct_str} Sequences (Uniformly Shuffled)")
-    print(f" DARTS Subsampling:   {search_pct_str} Sequences (Search Phase)")
+    print(f" DARTS Subsampling:   {search_pct_str} Sequences (Uniformly Shuffled)")
     print(f" Early Stopping:      Patience = {train_cfg.early_stopping_patience} epochs | Min Delta = {train_cfg.early_stopping_min_delta}m")
     print(f" Search Batch Size:   {search_cfg.batch_size} (Physical) | Accum Steps: {search_cfg.grad_accum_steps} (Effective: {search_effective_batch})")
     print(f" Train Batch Size:    {train_cfg.batch_size} (Physical) | Accum Steps: {train_cfg.grad_accum_steps} (Effective: {train_effective_batch})")
