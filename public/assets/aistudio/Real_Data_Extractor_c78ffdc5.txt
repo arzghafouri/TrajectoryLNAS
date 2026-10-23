@@ -1,0 +1,78 @@
+[Pipeline Policy] maps/expansion verified (Found 4 HD map expansion files in: F:\Program\Dataset\nuScenes\maps\expansion). 
+Executing REAL nuScenes extraction (ALL available sequences (No truncation) | Category: All Categories)...
+================================================================================
+ [Real Data Extractor] Extracting sequences via official nuScenes SDK...
+ Dataroot:F:\Program\Dataset\nuScenes
+ Target Count:ALL available sequences (No truncation)
+ Category Filter:  All Agent Categories
+================================================================================
+[NuScenes SDK] Metadata Inspection for 'F:\Program\Dataset\nuScenes':
+  -> Total Scenes: 850
+  -> Total Keyframe Samples: 34149
+  -> Total Annotations: 1166187
+  -> Total Instances:   64386
+  -> Total Log Tokens:  68
+  -> Total Category: 14, 'vehicle.car, human.pedestrian.adult, movable_object.barrier, vehicle.truck, movable_object.trafficcone, vehicle.motorcycle, vehicle.bus.rigid, vehicle.construction, human.pedestrian.construction_worker, movable_object.pushable_pullable, vehicle.bicycle, movable_object.debris, vehicle.trailer, static_object.bicycle_rack'
+================================================================================
+[NuScenes Maps] Loaded 4 vector HD map layers: ['boston-seaport', 'singapore-onenorth', 'singapore-queenstown', 'singapore-hollandvillage']
+
+[Train Split] Commencing extraction across 10 scenes (Target: ALL available)...
+  [Train Scene 001/010 | scene-0001  | singapore-onenorth]: Extracted 192 valid sequences | Cumulative: 192
+  [Train Scene 002/010 | scene-0002  | singapore-onenorth ]: Extracted 481 valid sequences | Cumulative: 673
+  [Train Scene 003/010 | scene-0003  | singapore-onenorth ]: Extracted 1099 valid sequences | Cumulative: 1,772
+  [Train Scene 004/010 | scene-0004  | singapore-onenorth ]: Extracted 1627 valid sequences | Cumulative: 3,399
+  [Train Scene 005/010 | scene-0005  | singapore-onenorth ]: Extracted 490 valid sequences | Cumulative: 3,889
+  [Train Scene 006/010 | scene-0006  | singapore-onenorth ]: Extracted 1141 valid sequences | Cumulative: 5,030
+  [Train Scene 007/010 | scene-0007  | singapore-onenorth ]: Extracted 490 valid sequences | Cumulative: 5,520
+  [Train Scene 008/010 | scene-0008  | singapore-onenorth ]: Extracted 298 valid sequences | Cumulative: 5,818
+  [Train Scene 009/010 | scene-0009  | singapore-onenorth ]: Extracted  88 valid sequences | Cumulative: 5,906
+  [Train Scene 010/010 | scene-0010  | singapore-onenorth ]: Extracted 196 valid sequences | Cumulative: 6,102
+
+[Train Split] Retained all 6,102 extracted sequences.
+[Val Split] Commencing extraction across 10 scenes (Target: ALL available)...
+  [Val Scene 001/010 | scene-0914  | boston-seaport]: Extracted 426 valid sequences | Cumulative: 426
+  [Val Scene 002/010 | scene-0915  | boston-seaport]: Extracted 662 valid sequences | Cumulative: 1,088
+  [Val Scene 003/010 | scene-0916  | singapore-queenstown]: Extracted 1491 valid sequences | Cumulative: 2,579
+  [Val Scene 004/010 | scene-0917  | singapore-queenstown]: Extracted 433 valid sequences | Cumulative: 3,012
+  [Val Scene 005/010 | scene-0919  | singapore-queenstown]: Extracted   8 valid sequences | Cumulative: 3,020
+  [Val Scene 006/010 | scene-0920  | singapore-queenstown]: Extracted 169 valid sequences | Cumulative: 3,189
+  [Val Scene 007/010 | scene-0921  | singapore-queenstown]: Extracted 231 valid sequences | Cumulative: 3,420
+  [Val Scene 008/010 | scene-0922  | singapore-queenstown]: Extracted 189 valid sequences | Cumulative: 3,609
+  [Val Scene 009/010 | scene-0923  | singapore-queenstown]: Extracted 127 valid sequences | Cumulative: 3,736
+  [Val Scene 010/010 | scene-0924  | singapore-queenstown]: Extracted 258 valid sequences | Cumulative: 3,994
+[Val Split] Retained all 3,994 extracted sequences.
+================================================================================
+[Dataset Writer] Saving 6,102 train sequences to: F:\Program\Dataset\nuScenes\v1.0-trainval\train_sequences.json
+ Saved Train Sequences:F:\Program\Dataset\nuScenes\v1.0-trainval\train_sequences.json (36.00 MB)
+[Dataset Writer] Saving 3,994 val sequences to: F:\Program\Dataset\nuScenes\v1.0-trainval\val_sequences.json 
+ Saved Val Sequences:  F:\Program\Dataset\nuScenes\v1.0-trainval\val_sequences.json (23.42 MB)
+================================================================================
+[Data Preparation Summary] Sequence Extraction Completed Successfully
+
+ Total Train Sequences: 6,102
+ Total Val Sequences:  3,994
+ Total Combined Sequences:  10,096
+ Applied Category Filter:   All Categories (14)
+ Average Neighbors/Agent:   4.98 surrounding agents
+ Average HD Map Lanes: 0.00 vector lanes / agent
+================================================================================
+ City Distribution:
+   - singapore-onenorth   :   6,102 ( 60.4%)
+   - singapore-queenstown :   2,906 ( 28.8%)
+   - boston-seaport  :   1,088 ( 10.8%)
+================================================================================
+ Agent Category Breakdown:
+   - vehicle.car:   3,128 ( 31.0%)
+   - human.pedestrian.adult:   2,125 ( 21.0%)
+   - movable_object.barrier:   1,913 ( 18.9%)
+   - vehicle.truck   :833 (  8.3%)
+   - movable_object.trafficcone:763 (  7.6%)
+   - vehicle.motorcycle   :285 (  2.8%)
+   - vehicle.bus.rigid:235 (  2.3%)
+   - vehicle.construction :210 (  2.1%)
+   - human.pedestrian.construction_worker:171 (  1.7%)
+   - movable_object.pushable_pullable:131 (  1.3%)
+   - vehicle.bicycle :118 (  1.2%)
+   - movable_object.debris: 73 (  0.7%)
+   - vehicle.trailer : 57 (  0.6%)
+   - static_object.bicycle_rack: 54 (  0.5%)

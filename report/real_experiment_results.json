@@ -1,0 +1,108 @@
+{
+  "version": "1.0.0",
+  "timestamp": "2026-10-21T17:03:26Z",
+  "thesis": {
+    "project": "TrajectoryLNAS",
+    "student": "Alireza Ghafouri (4031631209)",
+    "supervisors": [
+      "Dr. Zeinab Ghasemi Naraaghi",
+      "Dr. Zeinab Abedini"
+    ]
+  },
+  "environment": {
+    "device": "NVIDIA GeForce RTX 3050 Laptop GPU (CUDA)",
+    "cuda_available": true,
+    "dataset": "NUSCENES",
+    "total_train_sequences": 1280,
+    "total_val_sequences": 1280
+  },
+  "zero_cost_proxies": {
+    "snip": 577.1178,
+    "synflow": 21754.9685,
+    "search_runtime_hours": 0.014,
+    "search_runtime_seconds": 50.3
+  },
+  "darts_search": {
+    "epochs": 30,
+    "batch_size": 32,
+    "lambda_flops": 0.01,
+    "search_runtime_seconds": 50.3,
+    "history": [
+      { "epoch": 1, "train_loss": 24.1831, "val_ade": 3.1109, "val_fde": 4.9791, "flops_g": 0.00931, "temperature": 0.948, "alphas": { "temporal": [0.2, 0.2, 0.2, 0.2, 0.2], "interaction": [0.2, 0.2, 0.2, 0.2, 0.2], "map": [0.25, 0.25, 0.25, 0.25] } },
+      { "epoch": 5, "train_loss": 2.8573, "val_ade": 1.9337, "val_fde": 3.3246, "flops_g": 0.00933, "temperature": 0.765, "alphas": { "temporal": [0.202, 0.195, 0.195, 0.204, 0.204], "interaction": [0.196, 0.196, 0.195, 0.206, 0.207], "map": [0.246, 0.259, 0.247, 0.248] } },
+      { "epoch": 10, "train_loss": 1.4442, "val_ade": 0.4637, "val_fde": 0.6587, "flops_g": 0.00938, "temperature": 0.585, "alphas": { "temporal": [0.203, 0.187, 0.189, 0.209, 0.211], "interaction": [0.187, 0.187, 0.186, 0.219, 0.221], "map": [0.238, 0.273, 0.242, 0.246] } },
+      { "epoch": 15, "train_loss": 1.1787, "val_ade": 0.5646, "val_fde": 0.5638, "flops_g": 0.00939, "temperature": 0.447, "alphas": { "temporal": [0.206, 0.183, 0.187, 0.212, 0.213], "interaction": [0.182, 0.182, 0.18, 0.226, 0.229], "map": [0.233, 0.28, 0.24, 0.247] } },
+      { "epoch": 18, "train_loss": 1.0652, "val_ade": 0.3359, "val_fde": 0.5044, "flops_g": 0.00943, "temperature": 0.381, "alphas": { "temporal": [0.203, 0.178, 0.182, 0.218, 0.218], "interaction": [0.178, 0.179, 0.177, 0.232, 0.235], "map": [0.23, 0.29, 0.237, 0.243] } },
+      { "epoch": 20, "train_loss": 1.5416, "val_ade": 1.516, "val_fde": 2.8658, "flops_g": 0.00947, "temperature": 0.342, "alphas": { "temporal": [0.201, 0.173, 0.177, 0.224, 0.225], "interaction": [0.172, 0.173, 0.171, 0.24, 0.243], "map": [0.226, 0.302, 0.232, 0.24] } },
+      { "epoch": 25, "train_loss": 0.6849, "val_ade": 0.5997, "val_fde": 0.9332, "flops_g": 0.00942, "temperature": 0.262, "alphas": { "temporal": [0.211, 0.174, 0.18, 0.218, 0.216], "interaction": [0.174, 0.175, 0.173, 0.238, 0.241], "map": [0.227, 0.292, 0.236, 0.246] } },
+      { "epoch": 30, "train_loss": 1.0015, "val_ade": 0.4867, "val_fde": 0.9659, "flops_g": 0.0093, "temperature": 0.2, "alphas": { "temporal": [0.24, 0.182, 0.192, 0.191, 0.196], "interaction": [0.18, 0.182, 0.178, 0.228, 0.233], "map": [0.229, 0.263, 0.246, 0.262] } }
+    ]
+  },
+  "discovered_architecture": {
+    "temporal": { "index": 0, "name": "Identity" },
+    "interaction": { "index": 4, "name": "PairwiseAttention" },
+    "map": { "index": 1, "name": "LaneAttention" }
+  },
+  "final_training": {
+    "history": [
+      { "epoch": 1, "train_loss": 23.1486, "val_ade": 5.162, "val_fde": 8.8148, "miss_rate_2m": 100.0, "is_best": true },
+      { "epoch": 2, "train_loss": 6.3948, "val_ade": 3.9642, "val_fde": 6.4088, "miss_rate_2m": 80.0, "is_best": true },
+      { "epoch": 3, "train_loss": 5.0933, "val_ade": 3.4774, "val_fde": 5.4083, "miss_rate_2m": 80.0, "is_best": true },
+      { "epoch": 4, "train_loss": 3.6551, "val_ade": 1.6307, "val_fde": 2.9413, "miss_rate_2m": 80.0, "is_best": true },
+      { "epoch": 5, "train_loss": 2.904, "val_ade": 1.1319, "val_fde": 1.8141, "miss_rate_2m": 60.0, "is_best": true },
+      { "epoch": 6, "train_loss": 3.0189, "val_ade": 1.1535, "val_fde": 1.5232, "miss_rate_2m": 20.0, "is_best": false },
+      { "epoch": 7, "train_loss": 2.3061, "val_ade": 2.3325, "val_fde": 4.2509, "miss_rate_2m": 100.0, "is_best": false },
+      { "epoch": 8, "train_loss": 2.7039, "val_ade": 1.3494, "val_fde": 2.4469, "miss_rate_2m": 61.95, "is_best": false },
+      { "epoch": 9, "train_loss": 2.0596, "val_ade": 1.4719, "val_fde": 2.3705, "miss_rate_2m": 80.0, "is_best": false },
+      { "epoch": 10, "train_loss": 1.771, "val_ade": 0.777, "val_fde": 0.9141, "miss_rate_2m": 0.0, "is_best": true },
+      { "epoch": 11, "train_loss": 1.2409, "val_ade": 0.8364, "val_fde": 1.3199, "miss_rate_2m": 20.0, "is_best": false },
+      { "epoch": 12, "train_loss": 1.2743, "val_ade": 0.5928, "val_fde": 0.7063, "miss_rate_2m": 0.0, "is_best": true },
+      { "epoch": 13, "train_loss": 1.1571, "val_ade": 0.8242, "val_fde": 1.2185, "miss_rate_2m": 20.0, "is_best": false },
+      { "epoch": 14, "train_loss": 1.1156, "val_ade": 0.6682, "val_fde": 0.7565, "miss_rate_2m": 0.0, "is_best": false },
+      { "epoch": 15, "train_loss": 1.0351, "val_ade": 0.5792, "val_fde": 1.0217, "miss_rate_2m": 0.0, "is_best": true },
+      { "epoch": 16, "train_loss": 0.8394, "val_ade": 0.872, "val_fde": 1.7554, "miss_rate_2m": 19.77, "is_best": false },
+      { "epoch": 17, "train_loss": 1.0021, "val_ade": 0.6376, "val_fde": 0.5801, "miss_rate_2m": 0.0, "is_best": false },
+      { "epoch": 18, "train_loss": 0.9953, "val_ade": 0.7642, "val_fde": 1.4599, "miss_rate_2m": 0.16, "is_best": false },
+      { "epoch": 19, "train_loss": 1.0515, "val_ade": 0.7897, "val_fde": 0.9505, "miss_rate_2m": 0.0, "is_best": false },
+      { "epoch": 20, "train_loss": 1.4538, "val_ade": 1.0385, "val_fde": 1.7405, "miss_rate_2m": 40.0, "is_best": false },
+      { "epoch": 21, "train_loss": 1.3417, "val_ade": 1.3095, "val_fde": 2.4952, "miss_rate_2m": 80.0, "is_best": false },
+      { "epoch": 22, "train_loss": 1.3437, "val_ade": 0.7127, "val_fde": 0.9381, "miss_rate_2m": 0.0, "is_best": false },
+      { "epoch": 23, "train_loss": 1.1383, "val_ade": 0.9038, "val_fde": 1.3895, "miss_rate_2m": 0.0, "is_best": false }
+    ],
+    "early_stopping_triggered": true,
+    "early_stopping_epoch": 23,
+    "restored_epoch": 15,
+    "best_val_ade": 0.5792,
+    "best_val_fde": 1.0217
+  },
+  "edge_hardware_profiling": {
+    "device": "cuda",
+    "latency_ms_mean": 2.06,
+    "latency_ms_std": 0.44,
+    "latency_ms_p95": 2.82,
+    "throughput_fps": 484.3,
+    "total_params": 281602,
+    "total_params_m": 0.282,
+    "trainable_params": 281602,
+    "theoretical_flops_g": 0.94,
+    "operators": {
+      "temporal": "Identity",
+      "interaction": "PairwiseAttention",
+      "map": "LaneAttention"
+    }
+  },
+  "evaluation_metrics": {
+    "dataset": "nuscenes",
+    "samples_evaluated": 1280,
+    "ade_1s": 0.6349,
+    "ade_2s": 0.4924,
+    "ade_3s": 0.5792,
+    "fde_3s": 1.0217,
+    "miss_rate_2m": 0.0,
+    "step_errors": [
+      1.2734, 1.0369, 0.8269, 0.6769, 0.5728, 0.4966, 0.4361, 0.3851, 0.3409, 0.3029,
+      0.2721, 0.2516, 0.2542, 0.2755, 0.3083, 0.3467, 0.3872, 0.428, 0.4682, 0.5075,
+      0.5461, 0.5843, 0.623, 0.6635, 0.7072, 0.7557, 0.8104, 0.8724, 0.9427, 1.0217
+    ]
+  }
+}

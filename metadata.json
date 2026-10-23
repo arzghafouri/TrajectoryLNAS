@@ -1,0 +1,6 @@
+{
+  "name": "TrajectoryLNAS Workbench",
+  "description": "Trajectory Prediction Architecture Optimization via Lightweight Neural Architecture Search (DARTS, Super-Net, & Zero-Cost Proxies for Autonomous Driving)",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
