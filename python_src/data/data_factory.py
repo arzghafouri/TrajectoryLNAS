@@ -20,8 +20,8 @@ DEFAULT_DATASET_PATHS = {
         "description": "Argoverse 1 Motion Forecasting (205k train sequences, CSV format, 10Hz)"
     },
     "nuscenes": {
-        "train": r"F:\Program\Dataset\nuScenes\v1.0-trainval",
-        "val": r"F:\Program\Dataset\nuScenes\v1.0-trainval",
+        "train": r"F:\Program\Dataset\nuScenes\v1.0-trainval" if os.name == "nt" else "data/nuscenes/v1.0-trainval",
+        "val": r"F:\Program\Dataset\nuScenes\v1.0-trainval" if os.name == "nt" else "data/nuscenes/v1.0-trainval",
         "download_url": "https://www.nuscenes.org/download",
         "description": "nuScenes Prediction Benchmark (v1.0-trainval metadata + map expansion)"
     }

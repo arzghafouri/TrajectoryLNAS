@@ -12,18 +12,25 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def plot_horizon_error_curve(step_errors: Optional[List[float]] = None, dataset: str = "nuScenes", output_dir: str = "report/plots", eval_results: Optional[List[float]] = None, **kwargs) -> str:
+def plot_horizon_error_curve(
+    step_errors: Optional[List[float]] = None,
+    dataset: str = "nuScenes",
+    output_dir: str = "report/plots",
+    eval_results: Optional[List[float]] = None,
+    **kwargs
+) -> str:
     """Plots and saves the progression of displacement error across the 3.0s horizon."""
     os.makedirs(output_dir, exist_ok=True)
     out_file = os.path.join(output_dir, "horizon_error_curve.png")
 
-    errors = step_errors if step_errors is not None else (eval_results or [])
-    if not errors:
+    # Resolve errors from step_errors, eval_results, or kwargs
+    errors = step_errors if step_errors is not None else (eval_results if eval_results is not None else kwargs.get("errors", []))
+    if not errors or len(errors) == 0:
         return ""
 
     plt.figure(figsize=(7, 4.5))
-    timesteps = np.linspace(0.1, 3.0, len(step_errors))
-    plt.plot(timesteps, step_errors, marker='o', markersize=4, color='#06b6d4', linewidth=2, label='TrajectoryLNAS (Ours)')
+    timesteps = np.linspace(0.1, 3.0, len(errors))
+    plt.plot(timesteps, errors, marker='o', markersize=4, color='#06b6d4', linewidth=2, label='TrajectoryLNAS (Ours)')
     plt.title(f"Displacement Error Across 3.0s Horizon ({dataset.upper()})", fontsize=11, fontweight='bold')
     plt.xlabel("Prediction Horizon (seconds)", fontsize=10)
     plt.ylabel("Mean L2 Euclidean Error (meters)", fontsize=10)

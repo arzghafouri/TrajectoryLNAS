@@ -1,0 +1,246 @@
+دو فایل prepare_data.py و dataset_report_20261024_100202.txt را بررسی کردم. نتیجه بررسی این است که پیاده‌سازی نسبت به نسخه قبلی پیشرفت کرده و بخش‌هایی از طراحی مورد توافق واقعاً در کد وجود دارند؛ اما هنوز چند اختلاف مهم بین قابلیت‌های اعلام‌شده، کد اجرایی و گزارش آماری وجود دارد.
+
+مهم‌ترین مسئله این است که در وضعیت فعلی، نمی‌توان ادعا کرد هر چهار شاخه اطلاعاتی موردنیاز مدل (Temporal، Dynamic، Static و HD Map) به‌طور کامل آماده‌اند.
+۱. نتیجه ارزیابی قابلیت‌ها
+ارزیابی کلی پیاده‌سازی
+نیازمند اصلاح
+
+Target Agent Filtering	پیاده‌سازی شده
+Temporal 10Hz	نیازمند اصلاح
+Dynamic Neighbors	ناقص
+Static Objects	پیاده‌سازی نشده
+HD Map	ناقص
+Scene-level Split	پیاده‌سازی شده
+Data Leakage Validation	نیازمند تکمیل
+
+
+۲. مشکلات مهم در کد prepare_data.py
+۲.۱. اشیای ثابت عملاً استخراج نمی‌شوند
+اولویت بسیار بالا
+در کد، دسته‌های ثابت از Target Agent حذف شده‌اند:
+EXCLUDED_STATIC_CATEGORIES = {    "movable_object.barrier",    "movable_object.trafficcone",    "movable_object.debris",    "movable_object.pushable_pullable",    "static_object.bicycle_rack",    "animal"}
+
+
+
+این قسمت صحیح است. اما مشکل در ادامه رخ می‌دهد.
+
+ساختار خروجی هر نمونه فقط شامل این فیلدهاست:
+{    "sample_token": ...,    "instance_token": ...,    "scene_token": ...,    "scene_name": ...,    "category": ...,    "city": ...,    "past_traj": ...,    "future_traj": ...,    "neighbors_past": ...,    "map_lanes": ...}
+
+
+
+هیچ فیلدی به نام static_objects یا معادل آن وجود ندارد. prepare_data.py
+ prepare_data.py
+
+
+همچنین لایه‌های HD Map استخراج‌شده شامل barrier و trafficcone نیستند؛ این اشیا در لایه‌های معنایی نقشه قرار نمی‌گیرند و باید از Annotationهای صحنه استخراج شوند. prepare_data.py
+
+
+نتیجه: در حال حاضر موانع ثابت از Target حذف شده‌اند، اما شواهدی وجود ندارد که اطلاعات هندسی آن‌ها در Dataset حفظ شده باشد.
+
+برای رفع مشکل باید دو مجموعه مستقل داشته باشیم:
+- static_objects: موانع فیزیکی مشاهده‌شده در صحنه.
+- map_polylines: هندسه و ساختار نقشه HD.
+این دو نباید با یکدیگر ادغام شوند.
+۲.۲. بازنمونه‌برداری زمانی بر اساس Timestamp واقعی انجام نمی‌شود
+اولویت بسیار بالا
+این مورد مهم‌ترین اختلاف بین خلاصه قابلیت‌ها و پیاده‌سازی واقعی است.
+
+تابع فعلی:
+def interpolate_traj_time_based(    traj,    target_len,    start_time_offset,    end_time_offset):    ...    x_orig = np.linspace(        start_time_offset,        end_time_offset,        num=len(arr)    )    x_target = np.linspace(        start_time_offset,        end_time_offset,        num=target_len    )
+
+
+
+در این تابع، Timestampهای واقعی به‌عنوان ورودی دریافت نمی‌شوند؛ بلکه زمان نقاط اولیه با np.linspace تخمین زده می‌شود. prepare_data.py
+
+
+در مرحله استخراج نیز فقط آرایه مختصات از PredictHelper دریافت می‌شود:
+past = helper.get_past_for_agent(...)future = helper.get_future_for_agent(...)
+
+
+
+و سپس همین آرایه‌ها به تابع Interpolation داده می‌شوند. prepare_data.py
+
+
+بنابراین، این پیاده‌سازی در عمل Interpolation با فرض توزیع یکنواخت زمانی است، نه Interpolation بر اساس Timestamp واقعی هر مشاهده.
+
+اصلاح پیشنهادی:
+def interpolate_traj_time_based(    timestamps,    positions,    target_timestamps):    timestamps = np.asarray(timestamps, dtype=np.float64)    positions = np.asarray(positions, dtype=np.float32)    target_timestamps = np.asarray(        target_timestamps,        dtype=np.float64    )    if len(timestamps) != len(positions):        raise ValueError("Timestamp/position mismatch")    if len(timestamps) < 2:        raise ValueError("Insufficient observations")    if np.any(np.diff(timestamps) <= 0):        raise ValueError("Timestamps must be strictly increasing")    if target_timestamps[0] < timestamps[0]:        raise ValueError("Extrapolation is not allowed")    if target_timestamps[-1] > timestamps[-1]:        raise ValueError("Extrapolation is not allowed")    result = np.column_stack([        np.interp(target_timestamps, timestamps, positions[:, 0]),        np.interp(target_timestamps, timestamps, positions[:, 1])    ])    return result
+
+
+
+این صرفاً نمونه منطق اصلاح‌شده است؛ برای پیاده‌سازی نهایی باید Timestampها از زنجیره واقعی sample و sample_data استخراج و با Annotationها همگام شوند.
+۲.۳. استخراج همسایگان ناقص است
+اولویت بالا
+انتخاب ۱۵ همسایه نزدیک‌تر به‌درستی انجام شده است:
+neighbor_candidates.sort(key=lambda x: x[0])neighbors_sorted = [    n[1] for n in neighbor_candidates[:15]]
+
+
+
+اما چند مشکل وجود دارد:
+
+اول: تمام Annotationهای موجود در Sample بررسی می‌شوند؛ بنابراین همسایه‌ها صرفاً از دسته‌های متحرک انتخاب نمی‌شوند. ممکن است موانع ثابت نیز وارد neighbors_past شوند. prepare_data.py
+
+
+دوم: شرط اعتبار تاریخچه فقط دو نقطه است:
+if len(neighbor_past) >= 2:
+
+
+
+اما سپس خروجی به ۲۰ نقطه بازنمونه‌برداری می‌شود. در نتیجه، ۲۰ نقطه خروجی لزوماً معادل ۲۰ مشاهده معتبر نیست.
+
+سوم: اطلاعات زیر در خروجی ذخیره نمی‌شوند:
+- neighbor_instance_token
+- neighbor_category
+- neighbor_mask
+- موقعیت نسبی نسبت به Target
+- سرعت و جهت حرکت همسایه
+در نتیجه، گزارش فعلی که میانگین ۲۰ گام معتبر همسایگان را نشان می‌دهد، باید با احتیاط تفسیر شود؛ چون کد صرفاً تعداد نقاط اولیه را حداقل دو بررسی کرده است. dataset_report_20261024_100202.txt
+
+
+پیشنهاد می‌کنم ساختار همسایگان به این شکل توسعه پیدا کند:
+{    "trajectories": [...],    "categories": [...],    "instance_tokens": [...],    "relative_positions": [...],    "relative_speeds": [...],    "valid_mask": [...]}
+
+
+
+۲.۴. استخراج HD Map با توضیحات پیاده‌سازی یکسان نیست
+اولویت بالا
+در توضیحات تابع، drivable_area نیز ذکر شده، اما لایه‌های واقعی کد عبارت‌اند از:
+layers = [    "lane",    "lane_connector",    "walkway",    "ped_crossing",    "road_divider"]
+
+
+
+بنابراین drivable_area استخراج نمی‌شود. prepare_data.py
+
+
+مشکل دیگر این است که نوع هر Polyline در خروجی ذخیره نمی‌شود. در حال حاضر فقط مختصات هندسی برگردانده می‌شوند:
+result_polylines.append(resampled)
+
+
+
+این مسئله برای NAS مهم است؛ چون مدل نمی‌تواند تشخیص دهد یک Polyline مربوط به Lane است یا Walkway یا Pedestrian Crossing.
+
+ساختار مناسب‌تر:
+{    "points": [...],    "layer_type": "lane",    "length": 35.7,    "distance_to_agent": 4.2,    "valid_mask": [...]}
+
+
+
+نکته دیگر اینکه در صورت شکست استخراج Lane، کد به سراغ Polygon می‌رود و در صورت شکست عملیات استخراج، چندین Exception را با pass مخفی می‌کند. در نتیجه ممکن است نقص استخراج بدون هشدار جدی به خروجی منتقل شود. prepare_data.py
+
+
+همچنین بارگذاری نقشه شهرها نیز Exceptionها را نادیده می‌گیرد. prepare_data.py
+
+۲.۵. تقسیم‌بندی Train و Validation
+بخش مثبت پیاده‌سازی
+این بخش نسبتاً خوب پیاده‌سازی شده است:
+split_scenes = create_splits_scenes()train_scene_names = set(split_scenes.get("train", []))val_scene_names = set(split_scenes.get("val", []))
+
+
+
+سپس اشتراک Sceneها بررسی می‌شود و در صورت وجود هم‌پوشانی، Exception رخ می‌دهد. prepare_data.py
+
+
+این روش برای جلوگیری از انتقال اطلاعات یک Scene بین Train و Validation مناسب است.
+
+بااین‌حال، پیشنهاد می‌کنم علاوه بر Scene Name، شناسه‌های واقعی scene_token نیز در گزارش ذخیره شوند و کلید یکتای زیر در کل Dataset اعتبارسنجی شود:
+(sample_token, instance_token)
+
+
+
+۳. بررسی گزارش آماری Dataset
+گزارش ۲۴ اکتبر ۲۰۲۶ اطلاعات مفیدی دارد، اما چند علامت هشدار مهم در آن مشاهده می‌شود.
+۳.۱. وضعیت کلی داده‌ها
+کل نمونه‌ها4,365
+
+
+نمونه‌های کامل4,341
+99.45 درصد
+
+
+نمونه‌های دارای HD Map4,363
+99.95 درصد
+
+
+میانگین همسایگان12.13
+حداکثر ۱۵ همسایه
+
+
+
+dataset_report_20261024_100202.txt
+ dataset_report_20261024_100202.txt
+
+
+این اعداد از نظر ساختاری امیدوارکننده‌اند، اما گزارش نمی‌تواند به‌تنهایی صحت محتوای هر Modalitiy را اثبات کند.
+۳.۲. مشکل مهم: Search Sampling
+در گزارش آمده است:
+شاخص	مقدار
+Train Samples	2,941
+Search Percentage	20%
+Expected Search Samples	588
+Selected Search Samples	2,941
+مقدار واقعی انتخاب‌شده	100%
+
+dataset_report_20261024_100202.txt
+این یک ناسازگاری واقعی است.
+
+اگر قرار است NAS فقط با ۲۰ درصد داده‌های Train جستجو انجام دهد، انتخاب باید تقریباً ۵۸۸ نمونه باشد، نه ۲۹۴۱ نمونه.
+
+این موضوع برای سخت‌افزار شما اهمیت دارد؛ زیرا با توجه به محدودیت VRAM چهارگیگابایتی RTX 3050، کنترل اندازه داده‌های جستجو و هزینه محاسباتی ضروری است.
+
+علت دقیق این مشکل را بدون مشاهده DataConfig و nuscenes_dataset.py نمی‌توان تعیین کرد.
+۳.۳. توزیع نامتوازن دسته‌ها
+توزیع برخی دسته‌ها بین Train و Validation تفاوت زیادی دارد:
+دسته	Train	Validation
+Pedestrian Adult	36.4%	20.7%
+Vehicle Car	17.6%	60.5%
+Vehicle Truck	20.3%	3.5%
+Vehicle Bus	1.7%	7.9%
+Motorcycle	2.7%	0%
+Trailer	1.3%	0%
+
+dataset_report_20261024_100202.txt
+از آنجا که Split مبتنی بر Scene است، نباید برای متوازن‌سازی ساده، نمونه‌ها را تصادفی بین Train و Validation جابه‌جا کنیم؛ این کار می‌تواند Data Leakage ایجاد کند.
+
+اما باید توزیع دسته‌ها در ارزیابی گزارش شود و نتایج ADE و FDE به تفکیک نوع عامل نیز محاسبه شوند.
+۳.۴. پوشش جغرافیایی محدود
+در گزارش، هم Train و هم Validation فقط شامل شهر زیر هستند:
+
+singapore-onenorth
+dataset_report_20261024_100202.txt
+این لزوماً Split را نامعتبر نمی‌کند، اما تعمیم‌پذیری نتایج به سایر شهرهای nuScenes را محدود می‌کند.
+
+نکته مهم این است که کد در صورت تعیین محدودیت تعداد Sceneها، صرفاً ابتدای فهرست Sceneهای Train و Validation را انتخاب می‌کند. بنابراین محدودیت Scene می‌تواند پوشش جغرافیایی را به‌شدت تحت تأثیر قرار دهد. prepare_data.py
+
+۳.۵. تعداد Duplicate Samples
+گزارش عدد ۴۰۶۶ را برای Duplicate Samples نشان می‌دهد، درحالی‌که Cross-Split Duplicates برابر صفر است. dataset_report_20261024_100202.txt
+
+
+این دو مقدار الزاماً متناقض نیستند؛ ممکن است منظور از Duplicate Samples، تکرار sample_token در نمونه‌های مربوط به Agentهای مختلف باشد.
+
+چون یک Sample می‌تواند چندین Agent داشته باشد، تکرار sample_token به‌تنهایی به معنای تکراری بودن نمونه نیست.
+
+معیار صحیح برای تشخیص تکرار رکورد باید این باشد:
+unique_key = (    item["sample_token"],    item["instance_token"])
+
+
+
+تعریف دقیق عدد ۴۰۶۶ را نمی‌توان از گزارش فعلی تشخیص داد؛ برای بررسی آن به کد data_summery.py نیاز دارم.
+۴. اولویت اصلاحات پیش از توسعه NAS
+به نظر من اصلاحات را باید به این ترتیب انجام دهید:
+اولویت	اصلاح	دلیل
+P0	استخراج واقعی Static Objects	یکی از چهار شاخه مدل هنوز داده ندارد
+P0	اصلاح Timestamp-based Interpolation	صحت ورودی و برچسب زمانی
+P0	اصلاح Neighbor Mask و Metadata	جلوگیری از یادگیری از Padding یا تاریخچه ناقص
+P1	افزودن نوع لایه به HD Map	حفظ اطلاعات معنایی برای NAS
+P1	حذف Exceptionهای خاموش و ثبت پوشش نقشه	جلوگیری از Dataset ناقص با وضعیت READY
+P1	اصلاح Search Sampling	کنترل هزینه NAS
+P1	بررسی تعریف Duplicate Samples	صحت ارزیابی کیفیت داده
+P2	گزارش توزیع جغرافیایی و دسته‌ها	تحلیل تعمیم‌پذیری و کیفیت علمی
+
+۵. پیشنهاد ساختار نهایی Dataset
+من پیشنهاد می‌کنم قبل از توسعه Supernet، ساختار هر نمونه به این شکل تثبیت شود:
+{    "sample_token": "...",    "instance_token": "...",    "scene_token": "...",    "target": {        "category": "vehicle.car",        "past": [...],        "future": [...],        "timestamps_past": [...],        "timestamps_future": [...]    },    "dynamic_context": {        "trajectories": [...],        "categories": [...],        "instance_tokens": [...],        "relative_features": [...],        "valid_mask": [...]    },    "static_objects": {        "positions": [...],        "dimensions": [...],        "headings": [...],        "categories": [...],        "valid_mask": [...]    },    "hd_map": {        "polylines": [...],        "layer_types": [...],        "lengths": [...],        "distances": [...],        "valid_mask": [...]    },
+
+
+
+این ساختار باید با نیازهای واقعی DataLoader تطبیق داده شود؛ هدف آن این است که هر Modalitiy مستقل، قابل اعتبارسنجی و قابل غیرفعال‌سازی در آزمایش‌های Ablation باشد.

@@ -12,11 +12,11 @@ import json
 import argparse
 from typing import Dict, Any, Optional, Tuple, List
 
-# Allow running independently: python evaluate/evaluator.py or from root
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
+# Allow running independently or from root
+_curr_dir = os.path.dirname(os.path.abspath(__file__))
+_parent_dir = os.path.dirname(_curr_dir)
+if _parent_dir not in sys.path:
+    sys.path.insert(0, _parent_dir)
 
 import torch
 import numpy as np

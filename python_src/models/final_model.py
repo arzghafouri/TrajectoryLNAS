@@ -50,10 +50,11 @@ class FinalTrajectoryModel(nn.Module):
         self.best_interaction_idx = int(best_interaction_idx)
         self.best_map_idx = int(best_map_idx)
 
-        # 1. Coordinate Embedding Layers
-        self.input_proj = nn.Linear(2, d_model)
-        self.neighbor_proj = nn.Linear(2, d_model)
-        self.map_encoder = PolylineEncoder(in_channels=2, d_model=d_model)
+        # 1. Coordinate and Kinematic Embedding Layers
+        self.input_proj = nn.Linear(4, d_model)
+        self.neighbor_proj = nn.Linear(4, d_model)
+        self.category_emb = nn.Embedding(10, d_model)
+        self.map_encoder = PolylineEncoder(in_channels=4, d_model=d_model)
 
         # 2. Selected Temporal Operator
         temporal_candidates = [
@@ -104,13 +105,19 @@ class FinalTrajectoryModel(nn.Module):
         self,
         past: torch.Tensor,
         agents_past: torch.Tensor = None,
-        map_lanes: torch.Tensor = None
+        map_lanes: torch.Tensor = None,
+        category_id: torch.Tensor = None,
+        map_lane_types: torch.Tensor = None,
+        neighbor_categories: torch.Tensor = None
     ):
         """
         Forward multi-modal trajectory inference pass.
-        past: [B, 20, 2] or [B, 20, N, 2]
-        agents_past: [B, 20, N_agents, 2] (optional surrounding agents history)
-        map_lanes: [B, N_lanes, lane_pts, 2] (optional vectorized lane polylines)
+        past: [B, 20, 2 or 4] or [B, 20, N, 2 or 4]
+        agents_past: [B, 20, N_agents, 2 or 4] (optional surrounding agents history)
+        map_lanes: [B, N_lanes, lane_pts, 2 or 4] (optional vectorized lane polylines)
+        category_id: [B] (optional agent class ID)
+        map_lane_types: [B, N_lanes] (optional lane type ID)
+        neighbor_categories: [B, N_agents] (optional neighbor class IDs)
         
         Returns:
             pred_trajectories: [B, K, 30, 2]
@@ -121,10 +128,24 @@ class FinalTrajectoryModel(nn.Module):
                 agents_past = past
             past = past[:, :, 0, :]
 
-        B, T_past, _ = past.shape
+        B, T_past, C_past = past.shape
 
-        # 1. Target ego coordinate embedding
-        target_feat = self.input_proj(past)  # [B, T_past, d_model]
+        # 1. Target ego coordinate and kinematic velocity embedding
+        if C_past == 2:
+            vel = torch.zeros_like(past)
+            vel[:, 1:, :] = past[:, 1:, :] - past[:, :-1, :]
+            vel[:, 0, :] = vel[:, 1, :]
+            kinematic_past = torch.cat([past, vel], dim=-1) # [B, T_past, 4]
+        else:
+            kinematic_past = past
+
+        target_feat = self.input_proj(kinematic_past)  # [B, T_past, d_model]
+
+        # Inject Agent Category semantics if available
+        if category_id is not None:
+            cat_idx = category_id.view(B).clamp(0, 9)
+            cat_feat = self.category_emb(cat_idx).unsqueeze(1) # [B, 1, d_model]
+            target_feat = target_feat + cat_feat
 
         # 2. Surrounding agents processing
         neighbor_feats = None
@@ -135,9 +156,25 @@ class FinalTrajectoryModel(nn.Module):
             N = agents_past.shape[2]
             agent_mask = (agents_past.abs().sum(dim=(1, 3)) > 1e-4) # [B, N]
             agent_mask[:, 0] = True
-            emb_neighbors = self.neighbor_proj(agents_past)
+
+            if agents_past.shape[-1] == 2:
+                n_vel = torch.zeros_like(agents_past)
+                n_vel[:, 1:, :, :] = agents_past[:, 1:, :, :] - agents_past[:, :-1, :, :]
+                n_vel[:, 0, :, :] = n_vel[:, 1, :, :]
+                kinematic_agents = torch.cat([agents_past, n_vel], dim=-1) # [B, T, N, 4]
+            else:
+                kinematic_agents = agents_past
+
+            emb_neighbors = self.neighbor_proj(kinematic_agents)
             neighbor_feats = emb_neighbors.mean(dim=1) # [B, N, d_model]
-            agent_pos = agents_past[:, -1, :, :]
+
+            # Inject Neighbor Category semantics if available
+            if neighbor_categories is not None and neighbor_categories.shape == (B, N):
+                n_cat_feat = self.category_emb(neighbor_categories.clamp(0, 9)) # [B, N, d_model]
+                neighbor_feats = neighbor_feats + n_cat_feat
+
+            neighbor_feats = neighbor_feats * agent_mask.unsqueeze(-1).float()
+            agent_pos = agents_past[:, -1, :, :2]
         else:
             neighbor_feats = target_feat.mean(dim=1, keepdim=True)
             agent_mask = torch.ones(B, 1, dtype=torch.bool, device=past.device)
@@ -148,7 +185,8 @@ class FinalTrajectoryModel(nn.Module):
 
         if map_lanes is not None and map_lanes.dim() == 4:
             lane_mask = (map_lanes.abs().sum(dim=(2, 3)) > 1e-4)
-            lane_feats = self.map_encoder(map_lanes)
+            lane_feats = self.map_encoder(map_lanes, lane_types=map_lane_types)
+            lane_feats = lane_feats * lane_mask.unsqueeze(-1).float()
         else:
             lane_feats = target_feat.mean(dim=1, keepdim=True)
             lane_mask = torch.ones(B, 1, dtype=torch.bool, device=past.device)
@@ -191,9 +229,9 @@ class FinalTrajectoryModel(nn.Module):
 
         # Theoretical FLOPs calculation for standalone discrete model
         base_flops = (
-            2 * self.past_len * 2 * self.d_model  # input_proj
-            + 2 * self.past_len * self.max_agents * 2 * self.d_model  # neighbor_proj
-            + self.map_encoder.get_flops(self.max_lanes, self.lane_pts, self.d_model)  # map_encoder
+            2 * self.past_len * 4 * self.d_model  # input_proj (4 channels: x, y, vx, vy)
+            + 2 * self.past_len * self.max_agents * 4 * self.d_model  # neighbor_proj (4 channels)
+            + self.map_encoder.get_flops(self.max_lanes, self.lane_pts, self.d_model)  # map_encoder (in_channels=4)
             + 2 * self.past_len * 3 * self.d_model * self.d_model  # fusion
             + self.future_len * 3 * (2 * self.d_model * self.d_model)  # decoder
             + 2 * self.future_len * self.d_model * (self.num_modes * 2)  # out_proj

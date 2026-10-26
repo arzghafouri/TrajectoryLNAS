@@ -11,6 +11,7 @@ Optimized defaults for NVIDIA GeForce RTX 4060 Ti (8GB VRAM), 32GB System RAM, a
   - System memory capacity: 32GB RAM enables larger dataset caches and higher worker throughput
 """
 
+import os
 from dataclasses import dataclass, field
 from typing import Optional, Tuple, List, Union
 
@@ -44,9 +45,9 @@ class DataConfig:
         max_train_scenes: Number of scenes to extract for training (None = all scenes).
         max_val_scenes: Number of scenes to extract for validation (None = all scenes).
     """
-    dataroot: str = r"F:\Program\Dataset\nuScenes"
-    output_dir: str = r"F:\Program\Dataset\nuScenes\v1.0-trainval"
-    target_count: Optional[int] = 12800  # Elevated capacity for 32GB System RAM (or None for ALL)
+    dataroot: str = r"F:\Program\Dataset\nuScenes" if os.name == "nt" else "data/nuscenes"
+    output_dir: str = r"F:\Program\Dataset\nuScenes\v1.0-trainval" if os.name == "nt" else "data/nuscenes/v1.0-trainval"
+    target_count: Optional[int] = None  # Elevated capacity for 32GB System RAM (or None for ALL)
     category: Optional[Union[str, List[str]]] = None  # None = all categories
     mode: str = "auto"
     seed: int = 42

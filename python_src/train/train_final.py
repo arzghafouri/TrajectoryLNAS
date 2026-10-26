@@ -11,8 +11,11 @@ import sys
 import argparse
 from typing import Optional, Tuple
 
-# Enable running both from root and from train/ directory
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Ensure python_src directory is in sys.path
+_curr_dir = os.path.dirname(os.path.abspath(__file__))
+_parent_dir = os.path.dirname(_curr_dir)
+if _parent_dir not in sys.path:
+    sys.path.insert(0, _parent_dir)
 
 from config.search_config import TrainConfig
 from core.final_trainer import FinalModelTrainer

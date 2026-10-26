@@ -1,0 +1,255 @@
+{
+  "dataset_info": {
+    "dataset_name": "nuScenes Motion Prediction Benchmark",
+    "dataset_source": "https://www.nuscenes.org/download",
+    "dataset_root": "F:\\Program\\Dataset\\nuScenes",
+    "dataset_version": "v1.0-trainval",
+    "dataset_type": "Real",
+    "real_samples": 22562,
+    "synthetic_samples": 0,
+    "fallback_activated": false,
+    "fallback_reason": null,
+    "total_samples": 22562,
+    "training_samples": 17434,
+    "validation_samples": 5128,
+    "train_val_ratio": "17434:5128",
+    "inspection_mode": "full",
+    "number_of_inspected_samples": 22562,
+    "inspection_percentage": 100.0,
+    "random_seed": 42
+  },
+  "sequence_availability": {
+    "temporal_sequences": {
+      "available_samples": 22562,
+      "percentage": 100.0
+    },
+    "interaction_sequences": {
+      "available_samples": 22363,
+      "percentage": 99.12
+    },
+    "hd_map_sequences": {
+      "available_samples": 22557,
+      "percentage": 99.98
+    },
+    "complete_sequences": {
+      "available_samples": 22358,
+      "percentage": 99.1
+    }
+  },
+  "temporal_statistics": {
+    "avg_past_timesteps": 20.0,
+    "avg_future_timesteps": 30.0,
+    "min_past_timesteps": 20,
+    "max_past_timesteps": 20,
+    "min_future_timesteps": 30,
+    "max_future_timesteps": 30,
+    "avg_past_duration_sec": 2.0,
+    "avg_future_duration_sec": 3.0,
+    "avg_sampling_interval_hz": 10.0,
+    "sampling_interval_std": 0.0,
+    "avg_past_trajectory_length_m": 2.13,
+    "avg_future_trajectory_length_m": 3.22,
+    "avg_past_displacement_m": 2.1,
+    "avg_future_displacement_m": 3.15,
+    "avg_target_speed_mps": 1.12,
+    "avg_target_accel_mps2": 0.44,
+    "valid_past_pct": 100.0,
+    "valid_future_pct": 100.0
+  },
+  "interaction_statistics": {
+    "avg_neighbors_per_agent": 11.68,
+    "min_neighbors_per_agent": 0,
+    "max_neighbors_per_agent": 15,
+    "avg_valid_neighbor_timesteps": 20.0,
+    "avg_neighbor_agent_distance_m": 20.46,
+    "avg_relative_speed_mps": 1.65,
+    "pct_samples_with_neighbors": 99.12,
+    "pct_samples_without_neighbors": 0.88,
+    "neighbor_category_distribution": {
+      "human.pedestrian.child": 91,
+      "human.pedestrian.construction_worker": 14032,
+      "vehicle.construction": 6614,
+      "vehicle.truck": 12718,
+      "human.pedestrian.adult": 140174,
+      "vehicle.motorcycle": 7188,
+      "vehicle.car": 72497,
+      "vehicle.bicycle": 7915,
+      "vehicle.bus.rigid": 1446,
+      "vehicle.trailer": 255,
+      "human.pedestrian.stroller": 506,
+      "human.pedestrian.personal_mobility": 2
+    }
+  },
+  "hd_map_statistics": {
+    "avg_hd_map_lanes": 18.37,
+    "min_hd_map_lanes": 0,
+    "max_hd_map_lanes": 20,
+    "avg_points_per_lane": 10.0,
+    "min_points_per_lane": 10,
+    "max_points_per_lane": 10,
+    "avg_total_map_points_per_sequence": 183.74,
+    "avg_lane_length_m": 33.52,
+    "avg_distance_to_nearest_lane_m": 6.57,
+    "pct_samples_with_valid_hd_map": 99.98,
+    "pct_samples_without_hd_map": 0.02,
+    "lane_category_distribution": {
+      "lane": 174161,
+      "lane_connector": 240397,
+      "walkway": 0,
+      "ped_crossing": 0,
+      "road_divider": 0,
+      "drivable_area": 0
+    }
+  },
+  "category_distribution": {
+    "categories": [
+      {
+        "category": "human.pedestrian.adult",
+        "train_count": 8321,
+        "train_pct": 47.73,
+        "val_count": 2359,
+        "val_pct": 46.0,
+        "total_count": 10680
+      },
+      {
+        "category": "human.pedestrian.child",
+        "train_count": 13,
+        "train_pct": 0.07,
+        "val_count": 0,
+        "val_pct": 0.0,
+        "total_count": 13
+      },
+      {
+        "category": "human.pedestrian.construction_worker",
+        "train_count": 1060,
+        "train_pct": 6.08,
+        "val_count": 91,
+        "val_pct": 1.77,
+        "total_count": 1151
+      },
+      {
+        "category": "human.pedestrian.stroller",
+        "train_count": 25,
+        "train_pct": 0.14,
+        "val_count": 0,
+        "val_pct": 0.0,
+        "total_count": 25
+      },
+      {
+        "category": "vehicle.bicycle",
+        "train_count": 505,
+        "train_pct": 2.9,
+        "val_count": 174,
+        "val_pct": 3.39,
+        "total_count": 679
+      },
+      {
+        "category": "vehicle.bus.rigid",
+        "train_count": 181,
+        "train_pct": 1.04,
+        "val_count": 133,
+        "val_pct": 2.59,
+        "total_count": 314
+      },
+      {
+        "category": "vehicle.car",
+        "train_count": 4404,
+        "train_pct": 25.26,
+        "val_count": 1891,
+        "val_pct": 36.88,
+        "total_count": 6295
+      },
+      {
+        "category": "vehicle.construction",
+        "train_count": 745,
+        "train_pct": 4.27,
+        "val_count": 129,
+        "val_pct": 2.52,
+        "total_count": 874
+      },
+      {
+        "category": "vehicle.motorcycle",
+        "train_count": 580,
+        "train_pct": 3.33,
+        "val_count": 14,
+        "val_pct": 0.27,
+        "total_count": 594
+      },
+      {
+        "category": "vehicle.trailer",
+        "train_count": 45,
+        "train_pct": 0.26,
+        "val_count": 0,
+        "val_pct": 0.0,
+        "total_count": 45
+      },
+      {
+        "category": "vehicle.truck",
+        "train_count": 1555,
+        "train_pct": 8.92,
+        "val_count": 337,
+        "val_pct": 6.57,
+        "total_count": 1892
+      }
+    ]
+  },
+  "search_configuration": {
+    "configured_search_samples_percent": 20.0,
+    "total_available_training_samples": 17434,
+    "expected_search_samples": 3486,
+    "actual_inspected_train_samples": 17434,
+    "inspection_percentage": 100.0,
+    "validation_samples_used_during_search": 5128,
+    "sampling_strategy": "Uniform Deterministic Stratified Shuffling",
+    "random_seed": 42
+  },
+  "data_quality": {
+    "total_samples_inspected": 22562,
+    "valid_samples": 22562,
+    "invalid_samples": 0,
+    "missing_temporal_data": 0,
+    "missing_interaction_data": 199,
+    "missing_hd_map_data": 5,
+    "nan_values": 0,
+    "infinite_values": 0,
+    "invalid_coordinates": 0,
+    "empty_trajectories": 0,
+    "invalid_trajectory_lengths": 0,
+    "duplicate_samples": 0,
+    "invalid_category_labels": 0,
+    "invalid_masks": 0,
+    "filtered_samples": 0
+  },
+  "split_summary": {
+    "total_dataset_samples": 22562,
+    "training_samples": 17434,
+    "validation_samples": 5128,
+    "training_percentage": 77.27,
+    "validation_percentage": 22.73,
+    "duplicate_samples_across_splits": 0,
+    "shared_scenes_count": 0,
+    "train_cities": [
+      "singapore-onenorth"
+    ],
+    "val_cities": [
+      "singapore-onenorth"
+    ],
+    "scene_leakage_status": "PASSED (Strict Scene Separation)"
+  },
+  "timestamp": "20261024_184239",
+  "final_summary": {
+    "dataset_status": "READY",
+    "total_samples": 22562,
+    "training_samples": 17434,
+    "validation_samples": 5128,
+    "temporal_data_availability": "100.0%",
+    "interaction_data_availability": "99.12%",
+    "hd_map_data_availability": "99.98%",
+    "complete_valid_samples": 22358,
+    "invalid_samples": 0,
+    "filtered_samples": 0,
+    "synthetic_data_detected": false,
+    "fallback_activated": false,
+    "important_warnings": []
+  }
+}

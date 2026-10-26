@@ -4,6 +4,39 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # =========================================================================
+# Utility: Numerical Safety Helpers
+# =========================================================================
+
+def safe_cross_attention(mha_layer: nn.MultiheadAttention, query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, key_padding_mask: torch.Tensor = None) -> torch.Tensor:
+    """
+    Executes nn.MultiheadAttention safely, preventing NaN outputs when key_padding_mask
+    contains rows where ALL keys are masked (e.g., padded samples with no neighbors or lanes).
+    
+    When an entire row in the batch is masked, standard PyTorch MultiheadAttention computes
+    softmax(-inf) = NaN, polluting backpropagation gradients. This helper guarantees numerical
+    stability by unmasking a sentinel key and zeroing out the attention output for fully-masked rows.
+    """
+    if key_padding_mask is None:
+        out, _ = mha_layer(query, key, value)
+        return out
+
+    # key_padding_mask: [B, S_key] where True indicates padded/masked
+    all_masked = key_padding_mask.all(dim=-1)  # [B]
+    if not all_masked.any():
+        out, _ = mha_layer(query, key, value, key_padding_mask=key_padding_mask)
+        return out
+
+    # If any batch row is fully masked, unmask index 0 temporarily to prevent softmax(-inf) = NaN
+    sanitized_mask = key_padding_mask.clone()
+    sanitized_mask[all_masked, 0] = False
+    out, _ = mha_layer(query, key, value, key_padding_mask=sanitized_mask)
+
+    # Zero out the output for rows that were completely masked
+    valid_row_mask = (~all_masked).unsqueeze(-1).unsqueeze(-1).float()
+    return out * valid_row_mask
+
+
+# =========================================================================
 # 1. Temporal Operators (Single-Agent Trajectory Dynamics)
 # =========================================================================
 
@@ -32,8 +65,11 @@ class GRUEncoder(nn.Module):
         return out
 
     def get_flops(self, seq_len=20, d_model=128, **kwargs):
-        # GRU FLOPs per step: 3 * (2 * d_model * d_model + 2 * d_model)
-        return seq_len * 3 * (2 * d_model * d_model + 2 * d_model)
+        # Standard GRU per step: 3 gates (reset, update, new candidate).
+        # Linear transformations: 3 * (W_ih + W_hh + biases)
+        # MACs = 3 * (d_model * d_model + d_model * d_model + 2 * d_model)
+        # FLOPs = 2 * MACs
+        return seq_len * 6 * (2 * d_model * d_model + 2 * d_model)
 
 class LSTMEncoder(nn.Module):
     """LSTM encoder with cell states for long-term temporal dependencies."""
@@ -48,8 +84,9 @@ class LSTMEncoder(nn.Module):
         return out
 
     def get_flops(self, seq_len=20, d_model=128, **kwargs):
-        # LSTM FLOPs per step: 4 * (2 * d_model * d_model + 2 * d_model)
-        return seq_len * 4 * (2 * d_model * d_model + 2 * d_model)
+        # Standard LSTM per step: 4 gates (input, forget, cell, output).
+        # FLOPs = 2 * 4 * (2 * d_model * d_model + 2 * d_model)
+        return seq_len * 8 * (2 * d_model * d_model + 2 * d_model)
 
 class TemporalConvEncoder(nn.Module):
     """Temporal Convolutional Network (TCN) 1D with dilated receptive field."""
@@ -88,7 +125,10 @@ class TemporalSelfAttention(nn.Module):
         return self.norm(x + attn_out)
 
     def get_flops(self, seq_len=20, d_model=128, **kwargs):
-        return 8 * seq_len * d_model * d_model + 2 * seq_len * seq_len * d_model
+        # QKV Projections: 3 * (2 * seq_len * d_model^2)
+        # QK^T + Softmax * V: 4 * seq_len^2 * d_model
+        # Out Projection: 2 * seq_len * d_model^2
+        return 8 * seq_len * d_model * d_model + 4 * seq_len * seq_len * d_model
 
 
 # =========================================================================
@@ -99,6 +139,7 @@ class GCNLayer(nn.Module):
     """
     Graph Convolutional Network modeling spatial adjacency between ego vehicle
     and surrounding agents based on relative distance at current observation step.
+    Includes numerical degree normalization and robust logical masking.
     """
     def __init__(self, d_model):
         super().__init__()
@@ -122,17 +163,22 @@ class GCNLayer(nn.Module):
             dist = torch.cdist(agent_pos, agent_pos)  # [B, N, N]
             adj = torch.exp(-dist / 10.0)             # Gaussian spatial decay (10m bandwidth)
         else:
-            # Cosine similarity based adjacency
-            norm_feats = F.normalize(neighbor_feats, p=2, dim=-1)
-            adj = torch.bmm(norm_feats, norm_feats.transpose(1, 2)).clamp(min=0.0)
+            # Distance-agnostic normalized adjacency with self-loops
+            adj = torch.eye(N, device=neighbor_feats.device).unsqueeze(0).expand(B, -1, -1).clone()
+            if N > 1:
+                norm_feats = F.normalize(neighbor_feats, p=2, dim=-1)
+                sim = torch.bmm(norm_feats, norm_feats.transpose(1, 2)).clamp(min=0.0)
+                adj = 0.5 * adj + 0.5 * sim
 
         if agent_mask is not None:
             # agent_mask: [B, N] (True for valid, False for padded)
-            mask_2d = agent_mask.unsqueeze(1) * agent_mask.unsqueeze(2) # [B, N, N]
+            # Use logical AND (&) for boolean tensors instead of arithmetic multiplication
+            mask_2d = agent_mask.unsqueeze(1) & agent_mask.unsqueeze(2)  # [B, N, N]
             adj = adj * mask_2d.float()
 
-        # Degree normalization (D^-1 A)
-        d_inv = 1.0 / (adj.sum(dim=-1, keepdim=True).clamp(min=1e-5))
+        # Degree normalization (D^-1 A) with numerical protection against zero-degrees
+        deg = adj.sum(dim=-1, keepdim=True)
+        d_inv = torch.where(deg > 1e-5, 1.0 / deg, torch.zeros_like(deg))
         norm_adj = adj * d_inv
 
         # GCN propagation: [B, N, N] x [B, N, D] -> [B, N, D]
@@ -150,7 +196,7 @@ class GCNLayer(nn.Module):
 class GATLayer(nn.Module):
     """
     Graph Attention Network modeling dynamic directed attention from ego vehicle to neighbors.
-    Ego trajectory query attends over surrounding agent key/value vectors.
+    Ego trajectory query attends over surrounding agent key/value vectors with NaN protection.
     """
     def __init__(self, d_model, heads=4):
         super().__init__()
@@ -165,23 +211,13 @@ class GATLayer(nn.Module):
         if neighbor_feats is None:
             return target_feat
 
-        key_padding_mask = None
-        if agent_mask is not None:
-            # PyTorch MultiheadAttention takes key_padding_mask where True = ignore
-            key_padding_mask = ~agent_mask
-
-        # Target sequence queries attend across neighbor agent representations
-        attn_out, _ = self.attn(
-            query=target_feat,
-            key=neighbor_feats,
-            value=neighbor_feats,
-            key_padding_mask=key_padding_mask
-        )
+        key_padding_mask = (~agent_mask) if agent_mask is not None else None
+        attn_out = safe_cross_attention(self.attn, target_feat, neighbor_feats, neighbor_feats, key_padding_mask)
         return self.norm(target_feat + attn_out)
 
     def get_flops(self, seq_len=20, d_model=128, num_agents=16, **kwargs):
-        # QKV projections + Cross Attention between seq_len and num_agents
-        return 4 * (seq_len + num_agents) * d_model * d_model + 2 * seq_len * num_agents * d_model
+        # QKV projections + Cross Attention between seq_len and num_agents + Out projection
+        return 4 * (seq_len + num_agents) * d_model * d_model + 4 * seq_len * num_agents * d_model
 
 class SocialPooling(nn.Module):
     """
@@ -206,12 +242,13 @@ class SocialPooling(nn.Module):
 
         B, T, D = target_feat.shape
         if agent_mask is not None:
-            mask = agent_mask.unsqueeze(-1).float() # [B, N, 1]
-            pooled = (neighbor_feats * mask).sum(dim=1, keepdim=True) / mask.sum(dim=1, keepdim=True).clamp(min=1.0)
+            mask = agent_mask.unsqueeze(-1).float()  # [B, N, 1]
+            denom = mask.sum(dim=1, keepdim=True).clamp(min=1.0)
+            pooled = (neighbor_feats * mask).sum(dim=1, keepdim=True) / denom
         else:
-            pooled = neighbor_feats.mean(dim=1, keepdim=True) # [B, 1, D]
+            pooled = neighbor_feats.mean(dim=1, keepdim=True)  # [B, 1, D]
 
-        social_context = self.fc(pooled) # [B, 1, D]
+        social_context = self.fc(pooled)  # [B, 1, D]
         return self.norm(target_feat + social_context.expand(-1, T, -1))
 
     def get_flops(self, seq_len=20, d_model=128, num_agents=16, **kwargs):
@@ -219,25 +256,69 @@ class SocialPooling(nn.Module):
 
 class PairwiseAttention(nn.Module):
     """
-    Pairwise Attention estimating reciprocal influence between ego vehicle and each neighbor.
-    Uses single-head focused attention with distance-aware gating.
+    Pairwise Spatial-Gated Attention estimating reciprocal influence between ego vehicle and each neighbor.
+    Unlike standard MultiheadAttention, this operator explicitly incorporates relative Euclidean
+    distance gating between ego and surrounding agents, providing unique inductive bias.
     """
     def __init__(self, d_model):
         super().__init__()
         self.d_model = d_model
-        self.attn = nn.MultiheadAttention(d_model, num_heads=2, batch_first=True)
+        self.q_proj = nn.Linear(d_model, d_model)
+        self.k_proj = nn.Linear(d_model, d_model)
+        self.v_proj = nn.Linear(d_model, d_model)
+        self.out_proj = nn.Linear(d_model, d_model)
+        self.dist_scale = nn.Parameter(torch.tensor(0.1))
         self.norm = nn.LayerNorm(d_model)
 
-    def forward(self, target_feat, neighbor_feats=None, agent_mask=None, *args, **kwargs):
+    def forward(self, target_feat, neighbor_feats=None, agent_mask=None, agent_pos=None, *args, **kwargs):
         if neighbor_feats is None:
             return target_feat
 
-        key_padding_mask = (~agent_mask) if agent_mask is not None else None
-        out, _ = self.attn(target_feat, neighbor_feats, neighbor_feats, key_padding_mask=key_padding_mask)
+        B, T, D = target_feat.shape
+        N = neighbor_feats.shape[1]
+
+        Q = self.q_proj(target_feat)  # [B, T, D]
+        K = self.k_proj(neighbor_feats)  # [B, N, D]
+        V = self.v_proj(neighbor_feats)  # [B, N, D]
+
+        scores = torch.bmm(Q, K.transpose(1, 2)) / math.sqrt(D)  # [B, T, N]
+
+        # Modulate scores with physical distance decay if agent coordinates are provided
+        if agent_pos is not None:
+            # ego is index 0
+            ego_pos = agent_pos[:, 0:1, :]  # [B, 1, 2]
+            dist_to_ego = torch.norm(agent_pos - ego_pos, p=2, dim=-1, keepdim=True)  # [B, N, 1]
+            spatial_bias = -torch.abs(self.dist_scale) * dist_to_ego.transpose(1, 2)  # [B, 1, N]
+            scores = scores + spatial_bias
+
+        if agent_mask is not None:
+            all_masked = (~agent_mask).all(dim=-1, keepdim=True)  # [B, 1]
+            mask_expanded = agent_mask.unsqueeze(1)  # [B, 1, N]
+            if all_masked.any():
+                mask_expanded = mask_expanded.clone()
+                mask_expanded[all_masked.squeeze(-1), 0, 0] = True
+
+            scores = scores.masked_fill(~mask_expanded, -1e9)
+            attn_weights = F.softmax(scores, dim=-1)
+
+            if all_masked.any():
+                valid_mask = (~all_masked).unsqueeze(-1).float()
+                attn_weights = attn_weights * valid_mask
+        else:
+            attn_weights = F.softmax(scores, dim=-1)
+
+        context = torch.bmm(attn_weights, V)  # [B, T, D]
+        out = self.out_proj(context)
         return self.norm(target_feat + out)
 
     def get_flops(self, seq_len=20, d_model=128, num_agents=16, **kwargs):
-        return 4 * (seq_len + num_agents) * d_model * d_model + 2 * seq_len * num_agents * d_model
+        # QKV Projections + Attention Matrix + Out Projection
+        q_proj = 2 * seq_len * d_model * d_model
+        kv_proj = 4 * num_agents * d_model * d_model
+        attn_scores = 2 * seq_len * num_agents * d_model
+        attn_values = 2 * seq_len * num_agents * d_model
+        out_proj = 2 * seq_len * d_model * d_model
+        return q_proj + kv_proj + attn_scores + attn_values + out_proj
 
 
 # =========================================================================
@@ -247,11 +328,13 @@ class PairwiseAttention(nn.Module):
 class PolylineEncoder(nn.Module):
     """
     PointNet / VectorNet-style Polyline Subgraph Encoder for HD Map Centerlines.
-    Encodes [B, N_lanes, lane_pts, 2] into high-dimensional lane embeddings [B, N_lanes, d_model].
+    Encodes [B, N_lanes, lane_pts, 2 or 4] or [B, N_lanes, 2 or 4] into high-dimensional lane embeddings [B, N_lanes, d_model].
+    Includes segment tangent vectors (direction) and optional lane type embedding.
     """
-    def __init__(self, in_channels=2, d_model=128):
+    def __init__(self, in_channels=4, d_model=128):
         super().__init__()
         self.d_model = d_model
+        self.in_channels = in_channels
         self.point_mlp = nn.Sequential(
             nn.Linear(in_channels, d_model // 2),
             nn.LayerNorm(d_model // 2),
@@ -260,30 +343,66 @@ class PolylineEncoder(nn.Module):
             nn.LayerNorm(d_model),
             nn.ReLU()
         )
+        self.lane_type_emb = nn.Embedding(4, d_model)
         self.lane_proj = nn.Linear(d_model, d_model)
 
-    def forward(self, map_lanes):
-        # map_lanes: [B, N_lanes, lane_pts, 2]
-        B, N, P, C = map_lanes.shape
-        x = map_lanes.view(B * N * P, C)
-        pt_feat = self.point_mlp(x) # [B*N*P, D]
-        pt_feat = pt_feat.view(B, N, P, self.d_model)
-        # Max-pooling across points in each polyline (invariant to point ordering)
-        lane_feat, _ = pt_feat.max(dim=2) # [B, N, D]
-        return self.lane_proj(lane_feat)
+    def forward(self, map_lanes, lane_types=None, mask=None, **kwargs):
+        """
+        map_lanes / polylines: [B, N_lanes, lane_pts, C] or [B, N_lanes, C]
+        lane_types: [B, N_lanes] (optional)
+        mask: [B, N_lanes] or [B, N_lanes, lane_pts] (optional)
+        Returns: [B, N_lanes, d_model]
+        """
+        # Accept 'polylines' alias if passed via kwargs or first argument
+        polylines = map_lanes
+        if polylines.dim() == 4:
+            B, N, P, C = polylines.shape
+            if C == 2 and self.in_channels >= 4:
+                tangents = torch.zeros_like(polylines)
+                tangents[:, :, 1:, :] = polylines[:, :, 1:, :] - polylines[:, :, :-1, :]
+                tangents[:, :, 0, :] = tangents[:, :, 1, :]
+                polylines = torch.cat([polylines, tangents], dim=-1)
+                C = polylines.shape[-1]
 
-    def get_flops(self, num_lanes=20, lane_pts=10, d_model=128):
-        # point_mlp + maxpool + lane_proj
-        return num_lanes * lane_pts * (2 * 2 * (d_model // 2) + 2 * (d_model // 2) * d_model) + num_lanes * 2 * d_model * d_model
+            x = polylines.reshape(B * N * P, C)
+            pt_feat = self.point_mlp(x)  # [B*N*P, D]
+            pt_feat = pt_feat.view(B, N, P, self.d_model)
+
+            if mask is not None and mask.dim() == 3:
+                m = mask.unsqueeze(-1).float()
+                denom = m.sum(dim=2, keepdim=True).clamp(min=1.0)
+                lane_feat = (pt_feat * m).sum(dim=2) / denom.squeeze(-1)
+            else:
+                lane_feat, _ = pt_feat.max(dim=2)  # [B, N, D]
+
+            if lane_types is not None:
+                lane_feat = lane_feat + self.lane_type_emb(lane_types.clamp(0, 3))
+            return self.lane_proj(lane_feat)
+
+        elif polylines.dim() == 3:
+            B, N, C = polylines.shape
+            x = polylines.reshape(B * N, C)
+            lane_feat = self.point_mlp(x).view(B, N, self.d_model)
+            if lane_types is not None:
+                lane_feat = lane_feat + self.lane_type_emb(lane_types.clamp(0, 3))
+            return self.lane_proj(lane_feat)
+        else:
+            return self.lane_proj(self.point_mlp(polylines))
+
+    def get_flops(self, num_lanes=20, lane_pts=10, d_model=128, **kwargs):
+        # point_mlp (4 channels) + maxpool + lane_proj
+        return num_lanes * lane_pts * (2 * self.in_channels * (d_model // 2) + 2 * (d_model // 2) * d_model) + num_lanes * 2 * d_model * d_model
 
 class LaneAttention(nn.Module):
     """
     Cross-attention mechanism between vehicle trajectory state and HD Map lane vectors.
     Query = Ego Trajectory, Key/Value = Vectorized HD Map Lanes.
+    Protected against NaN when all lanes in a sample are masked/padded.
     """
     def __init__(self, d_model, heads=4):
         super().__init__()
         self.d_model = d_model
+        self.heads = heads
         self.attn = nn.MultiheadAttention(d_model, heads, batch_first=True)
         self.norm = nn.LayerNorm(d_model)
 
@@ -294,16 +413,16 @@ class LaneAttention(nn.Module):
             return target_feat
 
         key_padding_mask = (~lane_mask) if lane_mask is not None else None
-        out, _ = self.attn(
-            query=target_feat,
-            key=lane_feats,
-            value=lane_feats,
-            key_padding_mask=key_padding_mask
-        )
-        return self.norm(target_feat + out)
+        attn_out = safe_cross_attention(self.attn, target_feat, lane_feats, lane_feats, key_padding_mask)
+        return self.norm(target_feat + attn_out)
 
     def get_flops(self, seq_len=20, d_model=128, num_lanes=20, **kwargs):
-        return 4 * (seq_len + num_lanes) * d_model * d_model + 2 * seq_len * num_lanes * d_model
+        q_proj = 2 * seq_len * d_model * d_model
+        kv_proj = 4 * num_lanes * d_model * d_model
+        attn_matrix = 2 * seq_len * num_lanes * d_model
+        attn_value = 2 * seq_len * num_lanes * d_model
+        out_proj = 2 * seq_len * d_model * d_model
+        return q_proj + kv_proj + attn_matrix + attn_value + out_proj
 
 class LaneGraphEncoder(nn.Module):
     """
@@ -330,21 +449,28 @@ class LaneGraphEncoder(nn.Module):
         if lane_adj is None:
             norm_lanes = F.normalize(lane_feats, p=2, dim=-1)
             lane_adj = torch.bmm(norm_lanes, norm_lanes.transpose(1, 2)).clamp(min=0.0)
+            lane_adj = lane_adj + torch.eye(N, device=lane_feats.device).unsqueeze(0)
 
-        # Graph convolution over lane topology
-        d_inv = 1.0 / (lane_adj.sum(dim=-1, keepdim=True).clamp(min=1e-5))
+        if lane_mask is not None:
+            mask_2d = lane_mask.unsqueeze(1) & lane_mask.unsqueeze(2)
+            lane_adj = lane_adj * mask_2d.float()
+
+        # Degree normalization (D^-1 A) with zero-division safety
+        deg = lane_adj.sum(dim=-1, keepdim=True)
+        d_inv = torch.where(deg > 1e-5, 1.0 / deg, torch.zeros_like(deg))
         norm_adj = lane_adj * d_inv
-        graph_lanes = self.gcn(torch.bmm(norm_adj, lane_feats)) # [B, N_lanes, D]
+        graph_lanes = self.gcn(torch.bmm(norm_adj, lane_feats))  # [B, N_lanes, D]
 
-        # Cross attend from ego trajectory to topological road network
+        # Cross attend from ego trajectory to topological road network safely
         key_padding_mask = (~lane_mask) if lane_mask is not None else None
-        out, _ = self.cross_attn(target_feat, graph_lanes, graph_lanes, key_padding_mask=key_padding_mask)
-        return self.norm(target_feat + out)
+        attn_out = safe_cross_attention(self.cross_attn, target_feat, graph_lanes, graph_lanes, key_padding_mask)
+        return self.norm(target_feat + attn_out)
 
     def get_flops(self, seq_len=20, d_model=128, num_lanes=20, **kwargs):
         gcn_flops = 2 * num_lanes * num_lanes * d_model + 4 * num_lanes * d_model * d_model
-        attn_flops = 4 * (seq_len + num_lanes) * d_model * d_model + 2 * seq_len * num_lanes * d_model
+        attn_flops = 4 * (seq_len + num_lanes) * d_model * d_model + 4 * seq_len * num_lanes * d_model
         return gcn_flops + attn_flops
+
 
 class MapFeatureFusion(nn.Module):
     """
@@ -368,11 +494,12 @@ class MapFeatureFusion(nn.Module):
         B, T, D = target_feat.shape
         if lane_mask is not None:
             mask = lane_mask.unsqueeze(-1).float()
-            pooled_lane = (lane_feats * mask).sum(dim=1, keepdim=True) / mask.sum(dim=1, keepdim=True).clamp(min=1.0)
+            denom = mask.sum(dim=1, keepdim=True).clamp(min=1.0)
+            pooled_lane = (lane_feats * mask).sum(dim=1, keepdim=True) / denom
         else:
-            pooled_lane = lane_feats.mean(dim=1, keepdim=True) # [B, 1, D]
+            pooled_lane = lane_feats.mean(dim=1, keepdim=True)  # [B, 1, D]
 
-        expanded_lane = pooled_lane.expand(-1, T, -1) # [B, T, D]
+        expanded_lane = pooled_lane.expand(-1, T, -1)  # [B, T, D]
         fused = self.fc(torch.cat([target_feat, expanded_lane], dim=-1))
         return self.norm(target_feat + fused)
 

@@ -523,6 +523,10 @@ Master Entry Point executing the 3-Stage Scientific Workflow:
 Follows Dependency Injection (DI) with typed SearchConfig and TrainConfig.
 """
 import os, sys, time, argparse, json
+
+# Ensure python_src is in sys.path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from config.search_config import SearchConfig, TrainConfig
 from train.search import run_architecture_search
 from train.train_final import run_final_training
@@ -1273,6 +1277,57 @@ class DataPreparationPipeline:
             print(f"[Fallback] maps/expansion not found. Generating {fallback:,} synthetic sequences...")
             train, val = self.syn_generator.extract_sequences(dataroot, fallback, seed)
         self.writer.write(train, val, output_dir, seed)
+`,
+  },
+  {
+    id: 'data_summery',
+    name: 'data_summery.py',
+    path: 'data/data_summery.py',
+    description: 'کلاس DataSummery و ابزار خط فرمان مستقل برای تحلیل آماری، چک کیفیت و تولید گزارش‌های TXT/JSON/CSV در python_src/report/',
+    code: `"""
+TrajectoryLNAS Independent Dataset Statistics and Reporting Tool
+================================================================
+Author: Senior Machine Learning Engineer (TrajectoryLNAS)
+Module: python_src/data/data_summery.py
+"""
+import os, sys, json, csv, math, time, argparse, traceback
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Tuple, Any, Optional
+
+class DataSummery:
+    def __init__(self, data_root=None, config=None, output_dir=None, mode="full", sample_percent=100.0, seed=42, split="both", formats=None, dataset_version="v1.0-trainval"):
+        self.data_root = data_root or r"F:\\Program\\Dataset\\nuScenes\\v1.0-trainval"
+        self.mode = mode.lower()
+        self.sample_percent = float(sample_percent)
+        self.seed = int(seed)
+        self.split = split.lower()
+        self.formats = [f.lower() for f in (formats or ["txt", "json", "csv"])]
+        self.dataset_version = dataset_version
+        self.output_dir = Path(output_dir).resolve() if output_dir else Path(__file__).resolve().parent.parent / "report"
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.status = "PENDING"
+        self.train_raw_samples, self.val_raw_samples = [], []
+        self.inspected_train_samples, self.inspected_val_samples = [], []
+        self.stats = {}
+
+    def load_dataset(self): ...
+    def inspect_dataset(self): ...
+    def collect_statistics(self): ...
+    def analyze_temporal_sequences(self, samples): ...
+    def analyze_interaction_sequences(self, samples): ...
+    def analyze_hd_map_sequences(self, samples): ...
+    def analyze_categories(self, train_samples, val_samples): ...
+    def analyze_search_samples(self): ...
+    def analyze_data_quality(self, samples): ...
+    def analyze_train_val_split(self): ...
+    def validate_dataset(self): ...
+    def generate_txt_report(self): ...
+    def generate_json_report(self): ...
+    def generate_csv_report(self): ...
+    def save_reports(self): ...
+    def run(self): ...
 `,
   },
   {

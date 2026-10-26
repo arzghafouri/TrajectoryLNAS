@@ -1,0 +1,126 @@
+================================================================================
+TRAJECTORYLNAS COMPREHENSIVE DATASET STATISTICS REPORT
+================================================================================
+Timestamp               : 20261024_034817
+Dataset Name            : nuScenes Motion Prediction Benchmark
+Dataset Version         : v1.0-trainval
+Dataset Root Path       : F:\Program\Dataset\nuScenes
+Dataset Type            : Real (Real: 663214, Synthetic: 0)
+Status                  : READY
+
+[1] DATASET INFORMATION
+--------------------------------------------------------------------------------
+Total Samples           : 663,214
+Training Samples        : 596,001
+Validation Samples      : 67,213
+Train/Val Ratio         : 596001:67213
+Inspection Mode         : full
+Inspected Samples       : 663,214 (100.0%)
+Random Seed             : 42
+Fallback Activated      : False (None)
+
+[2] SEQUENCE AVAILABILITY
+--------------------------------------------------------------------------------
+Temporal Sequences      : 663,214 (100.0%)
+Interaction Sequences   : 663,025 (99.97%)
+HD Map Sequences        : 0 (0.0%)
+Complete Sequences      : 0 (0.0%)
+
+[3] TEMPORAL SEQUENCE STATISTICS
+--------------------------------------------------------------------------------
+Past Timesteps          : Avg 20.0 | Min 20 | Max 20
+Future Timesteps        : Avg 30.0 | Min 30 | Max 30
+Past Duration (s)       : Avg 2.0s
+Future Duration (s)     : Avg 3.0s
+Sampling Interval       : 10.0 Hz (Std: 0.0)
+Past Trajectory Length  : Avg 1.56 m
+Future Trajectory Length: Avg 2.65 m
+Past Displacement       : Avg 1.54 m
+Future Displacement     : Avg 2.6 m
+Target Agent Speed      : Avg 0.82 m/s
+Target Agent Accel      : Avg -0.0 m/s²
+Valid Trajectories      : Past 100.0% | Future 100.0%
+
+[4] INTERACTION SEQUENCE STATISTICS
+--------------------------------------------------------------------------------
+Avg Neighbors / Agent   : 4.98 (Min: 0, Max: 5)
+Valid Neighbor Timesteps: Avg 20.0
+Neighbor-Agent Distance : Avg 41.52 m
+Relative Speed          : Avg 1.38 m/s
+Samples w/ Neighbors    : 99.97%
+Samples w/o Neighbors   : 0.03%
+
+[5] HD MAP SEQUENCE STATISTICS
+--------------------------------------------------------------------------------
+Avg HD Map Lanes        : 0.0 (Min: 0, Max: 0)
+Points Per Lane         : Avg 0.0 (Min: 0, Max: 0)
+Total Points / Sequence : Avg 0.0
+Average Lane Length     : Avg 0.0 m
+Nearest Lane Distance   : Avg 0.0 m
+Valid HD Map Samples    : 0.0%
+
+[6] CATEGORY DISTRIBUTION
+--------------------------------------------------------------------------------
+  - animal              : Train   302 (  0.1%) | Val    29 (  0.0%) | Total    331
+  - human.pedestrian.adult: Train 109423 ( 18.4%) | Val 16652 ( 24.8%) | Total 126075
+  - human.pedestrian.child: Train   914 (  0.1%) | Val     0 (  0.0%) | Total    914
+  - human.pedestrian.construction_worker: Train  4318 (  0.7%) | Val   479 (  0.7%) | Total   4797
+  - human.pedestrian.personal_mobility: Train   217 (  0.0%) | Val    23 (  0.0%) | Total    240
+  - human.pedestrian.police_officer: Train   399 (  0.1%) | Val     1 (  0.0%) | Total    400
+  - human.pedestrian.stroller: Train   522 (  0.1%) | Val    27 (  0.0%) | Total    549
+  - human.pedestrian.wheelchair: Train   334 (  0.1%) | Val     0 (  0.0%) | Total    334
+  - movable_object.barrier: Train 74410 ( 12.5%) | Val  5869 (  8.7%) | Total  80279
+  - movable_object.debris: Train  1486 (  0.2%) | Val   198 (  0.3%) | Total   1684
+  - movable_object.pushable_pullable: Train  9468 (  1.6%) | Val  5471 (  8.1%) | Total  14939
+  - movable_object.trafficcone: Train 42559 (  7.1%) | Val  2788 (  4.2%) | Total  45347
+  - static_object.bicycle_rack: Train  1535 (  0.3%) | Val   104 (  0.1%) | Total   1639
+  - vehicle.bicycle     : Train  5371 (  0.9%) | Val   478 (  0.7%) | Total   5849
+  - vehicle.bus.bendy   : Train   989 (  0.2%) | Val    64 (  0.1%) | Total   1053
+  - vehicle.bus.rigid   : Train  8903 (  1.5%) | Val  2029 (  3.0%) | Total  10932
+  - vehicle.car         : Train 255922 ( 42.9%) | Val 28302 ( 42.1%) | Total 284224
+  - vehicle.construction: Train  8547 (  1.4%) | Val   503 (  0.8%) | Total   9050
+  - vehicle.emergency.ambulance: Train    29 (  0.0%) | Val     0 (  0.0%) | Total     29
+  - vehicle.emergency.police: Train   375 (  0.1%) | Val    25 (  0.0%) | Total    400
+  - vehicle.motorcycle  : Train  6146 (  1.0%) | Val  1909 (  2.8%) | Total   8055
+  - vehicle.trailer     : Train 14284 (  2.4%) | Val    81 (  0.1%) | Total  14365
+  - vehicle.truck       : Train 49548 (  8.3%) | Val  2181 (  3.2%) | Total  51729
+
+[7] SEARCH CONFIGURATION AND SAMPLE SELECTION
+--------------------------------------------------------------------------------
+Configured Search %     : 20.0%
+Available Train Samples : 596,001
+Expected Search Samples : 119,200
+Selected Search Samples : 596,001 (100.0%)
+Search Val Samples Used : 67,213
+Sampling Strategy       : Uniform Deterministic Stratified Shuffling
+
+[8] DATA QUALITY AND VALIDATION
+--------------------------------------------------------------------------------
+Total Inspected         : 663,214
+Valid Samples           : 663,214
+Invalid Samples         : 0
+Missing Temporal Data   : 0
+Missing Interaction Data: 189
+Missing HD Map Data     : 663214
+NaN Values              : 0
+Infinite Values         : 0
+Invalid Coordinates     : 0
+Empty Trajectories      : 0
+Duplicate Samples       : 620848
+
+[9] TRAIN / VALIDATION SPLIT SUMMARY
+--------------------------------------------------------------------------------
+Training Samples        : 596,001 (89.87%)
+Validation Samples      : 67,213 (10.13%)
+Cross-Split Duplicates  : 4678
+Scene Leakage Status    : WARNING (4678 Shared Instances Detected)
+Training Cities         : boston-seaport, singapore-hollandvillage, singapore-onenorth, singapore-queenstown
+Validation Cities       : boston-seaport, singapore-hollandvillage, singapore-onenorth, singapore-queenstown
+
+[10] FINAL DATASET SUMMARY
+--------------------------------------------------------------------------------
+Dataset Status          : READY
+Synthetic Data Detected : False
+Fallback Activated      : False
+Important Warnings      : None
+================================================================================

@@ -1,0 +1,296 @@
+با بررسی کد DataConfig و ماژول data_summery.py، چند ایراد مهم مشخص می‌شود. نکته اصلی این است که گزارش فعلی در چند بخش، وضعیت واقعی دیتاست و تنظیمات Search را به‌درستی منعکس نمی‌کند؛ بنابراین فعلاً نباید صرفاً بر اساس وضعیت READY به آن اعتماد کرد.
+۱. ایرادات بحرانی در DataSummery
+۱.۱. تولید خودکار داده مصنوعی در زمان نبود فایل واقعی
+در متد load_dataset():
+if not train_file.exists() or not val_file.exists():    self._generate_mock_sequences_if_needed(train_file, val_file)    self.fallback_activated = True
+
+
+
+این رفتار برای یک ابزار مستقل ارزیابی دیتاست خطرناک است؛ چون اگر مسیر اشتباه باشد یا فایل واقعی پیدا نشود، ابزار خودش داده مصنوعی تولید می‌کند و ممکن است در نهایت گزارش ظاهراً معتبر بسازد.
+
+پیشنهاد اصلاح:
+- حذف کامل فراخوانی خودکار _generate_mock_sequences_if_needed.
+- نبود هر یک از فایل‌های موردنیاز باید وضعیت را FAILED کند.
+- تولید داده مصنوعی فقط با یک گزینه صریح مانند --allow-mock-data مجاز باشد.
+- در حالت عادی، هیچ فایل یا دیتاستی نباید ایجاد یا بازنویسی شود.
+۱.۲. تشخیص Real و Synthetic قابل اعتماد نیست
+در حال حاضر تشخیص نوع دیتاست بر اساس نام instance_token انجام می‌شود:
+tok = str(s.get("instance_token", ""))if "synth" in tok or "mock" in tok or "synthetic" in tok:
+
+
+
+این روش تضمین نمی‌کند که داده واقعاً از nuScenes استخراج شده باشد. ممکن است داده مصنوعی نامی شبیه توکن واقعی داشته باشد یا داده واقعی با نامی غیرمعمول، مصنوعی تشخیص داده شود.
+
+پیشنهاد: در فایل‌های خروجی prepare_data.py، متادیتای صریح ذخیره شود:
+{    "dataset_type": "real",    "source": "nuScenes",    "dataset_version": "v1.0-trainval",    "split": "train",    "generator_version": "..."}
+
+
+
+تشخیص نوع داده باید بر اساس metadata معتبر انجام شود، نه حدس از روی token.
+۱.۳. خطای محاسبه سرعت و شتاب
+در analyze_temporal_sequences():
+dt = 0.1
+
+
+
+ابزار بدون بررسی فاصله زمانی واقعی نقاط، فرض می‌کند تمام نمونه‌ها با فرکانس 10Hz ثبت شده‌اند.
+
+این مسئله در دیتاست nuScenes اهمیت زیادی دارد؛ زیرا داده‌های annotation اصلی لزوماً با فاصله زمانی 0.1 ثانیه ثبت نشده‌اند و ممکن است نقاط با interpolation به 10Hz تبدیل شده باشند.
+
+همچنین:
+vels = [    _dist_2d(past[i], past[i+1]) / dt    for i in range(p_len - 1)]
+
+
+
+استفاده از فاصله اقلیدسی به‌جای بردار سرعت باعث می‌شود جهت حرکت از محاسبه حذف شود. برای محاسبه شتاب نیز باید تغییر بردار سرعت در نظر گرفته شود، نه صرفاً تغییر اندازه سرعت.
+
+پیشنهاد: timestamp هر نقطه یا حداقل آرایه زمانی متناظر با trajectory ذخیره شود. سپس:
+\[
+v_i = \frac{p_{i+1}-p_i}{t_{i+1}-t_i}
+\]
+
+\[
+a_i = \frac{v_{i+1}-v_i}{t_{i+1}-t_i}
+\]
+
+اگر timestamp در داده موجود نیست، گزارش باید صریحاً اعلام کند که سرعت و شتاب بر اساس فرض 10Hz محاسبه شده‌اند.
+۱.۴. محاسبه فاصله همسایگان
+در این قسمت:
+dist = _dist_2d(n[-1], target_past[-1])
+
+
+
+فاصله همسایه و عامل هدف در آخرین نقطه هر trajectory محاسبه می‌شود. این محاسبه تنها زمانی معتبر است که هر دو trajectory در یک timestamp و یک coordinate frame باشند.
+
+در غیر این صورت، مقدار گزارش‌شده می‌تواند اشتباه باشد.
+
+همچنین دسته‌بندی همسایگان به شکل زیر انجام می‌شود:
+cat = s.get("agent_category", "vehicle")
+
+
+
+این کد دسته‌بندی خود عامل هدف را به همسایگان نسبت می‌دهد؛ درحالی‌که باید category هر neighbor از metadata خودش خوانده شود.
+
+بنابراین neighbor_category_distribution فعلی قابل استناد نیست.
+
+۲. ایرادات جدی در محاسبه HD Map
+۲.۱. دسته‌بندی تمام polylines به‌عنوان drivable_area
+در این قسمت:
+lane_categories = {    "drivable_area": 0,    "lane_divider": 0,    "ped_crossing": 0}
+
+
+
+و سپس:
+lane_categories["drivable_area"] += 1
+
+
+
+تمام خطوط موجود در map_lanes به‌عنوان drivable_area ثبت می‌شوند.
+
+این آمار نادرست است؛ چون map_lanes ممکن است شامل lane، lane connector، walkway، pedestrian crossing و road divider باشد.
+
+پیشنهاد: در ساختار داده، نوع هر polyline حفظ شود:
+{    "points": [...],    "layer_type": "lane",    "length": 35.8,    "distance_to_target": 7.2}
+
+
+
+سپس گزارش بر اساس layer_type آمار واقعی هر لایه را محاسبه کند.
+۲.۲. محاسبه نزدیک‌ترین فاصله به‌صورت نقطه‌ای
+در کد فعلی:
+for pt in l:    d = _dist_2d(pt, target_pos)
+
+
+
+فاصله عامل هدف تا نزدیک‌ترین نقطه نمونه‌برداری‌شده polyline محاسبه می‌شود، نه فاصله تا خود خط هندسی.
+
+با توجه به اینکه polylineها ممکن است فقط 10 نقطه داشته باشند، این روش می‌تواند خطای قابل‌توجهی داشته باشد.
+
+برای دقت بیشتر باید فاصله نقطه تا segment محاسبه شود:
+\[
+d(P,AB)=\min_{Q \in AB}\|P-Q\|_2
+\]
+
+و برای هر polyline، کمترین فاصله به تمام segmentهای آن در نظر گرفته شود.
+
+۳. ایرادات بحرانی در Data Quality
+۳.۱. تشخیص Duplicate اشتباه است
+کد فعلی:
+tok = s.get("instance_token", str(id(s)))if tok in seen_tokens:    duplicates += 1seen_tokens.add(tok)
+
+
+
+در nuScenes یک instance_token ممکن است در چند sample مختلف تکرار شود؛ این تکرار به معنی duplicate بودن trajectory نیست.
+
+شناسه صحیح برای تشخیص تکراری بودن یک نمونه:
+key = (    s.get("sample_token"),    s.get("instance_token"))
+
+
+
+بنابراین عدد 4066 در گزارش قبلی به‌تنهایی قابل تفسیر نیست و احتمالاً بیش از حد واقعی گزارش شده است.
+
+همچنین باید دو نوع duplicate جداگانه بررسی شوند:
+- Exact duplicate: دو رکورد با کلید یکسان (sample_token, instance_token).
+- Content duplicate: دو رکورد با محتوای یکسان، حتی اگر شناسه‌های متفاوت داشته باشند.
+این دو مفهوم نباید با هم ترکیب شوند.
+۳.۲. بررسی مختصات ناقص است
+در حال حاضر فقط مختصات past_traj و future_traj بررسی می‌شوند.
+
+اما این بخش‌ها نیز باید اعتبارسنجی شوند:
+- neighbors_past
+- static_objects
+- map_lanes یا map_polylines
+- ابعاد اشیاء و heading
+- timestampها
+- maskها
+- coordinate frame
+همچنین math.isnan() و math.isinf() در صورتی که مقدار مختصات به‌صورت رشته یا نوع نامعتبر باشد، ممکن است Exception ایجاد کنند.
+۳.۳. اعتبارسنجی طول trajectory با وضعیت معتبر بودن مخلوط شده است
+در کد فعلی:
+if len(past) != 20 or len(future) != 30:    invalid_lengths += 1
+
+
+
+اما این مورد باعث invalid_cnt نمی‌شود.
+
+در نتیجه ممکن است نمونه‌ای با trajectory ناقص، در شمار نمونه‌های معتبر قرار بگیرد.
+
+باید میان این موارد تفاوت قائل شد:
+وضعیت	مفهوم
+Valid	داده از نظر ساختاری و عددی معتبر است
+Invalid	داده دارای خطای جدی است
+Incomplete	یک یا چند modality یا timestep ناقص است
+Missing Modality	یک modality موجود نیست
+Derived	داده با interpolation یا پردازش ساخته شده است
+
+این تفکیک برای ارزیابی واقعی کیفیت داده ضروری است.
+
+۴. خطای محاسبه Scene Leakage
+در analyze_train_val_split():
+tr_scenes = set(    s.get("scene_token", s.get("scene_name", ""))    for s in self.train_raw_samples    if "scene_token" in s or "scene_name" in s)va_scenes = set(    s.get("scene_token", s.get("scene_name", ""))    for s in self.train_raw_samples    if "scene_token" in s or "scene_name" in s)
+
+
+
+متغیر va_scenes اشتباهاً از داده‌های train ساخته شده است.
+
+این متغیر در محاسبه نهایی استفاده نمی‌شود، چون در ادامه va_scenes_actual از validation ساخته می‌شود؛ بنابراین فعلاً مستقیماً نتیجه نهایی را خراب نمی‌کند، اما کد اضافی و اشتباه است.
+
+نسخه صحیح:
+tr_scenes = {    s.get("scene_token", s.get("scene_name"))    for s in self.train_raw_samples}va_scenes = {    s.get("scene_token", s.get("scene_name"))    for s in self.val_raw_samples}shared_scenes = tr_scenes.intersection(va_scenes)
+
+
+
+همچنین کلید نمونه:
+(s.get("sample_token", ""), s.get("instance_token", ""))
+
+
+
+بهتر است در صورت نبود هر یک از اجزا، به‌عنوان کلید معتبر پذیرفته نشود؛ وگرنه رکوردهای فاقد شناسه ممکن است به اشتباه با یکدیگر تطبیق داده شوند.
+
+۵. خطای جدی در Search Sample Selection
+این بخش مهم‌ترین علت اختلاف گزارش قبلی است.
+
+در DataConfig:
+target_count: Optional[int] = None
+
+
+
+و در SearchConfig:
+search_samples_percent: Optional[float] = 20.0
+
+
+
+اما DataSummery در متد inspect_dataset() از sample_percent استفاده می‌کند؛ نه از SearchConfig.search_samples_percent.
+
+در نتیجه، اجرای پیش‌فرض:
+sample_percent = 100.0
+
+
+
+تمام داده‌های train را بررسی می‌کند.
+
+از طرف دیگر، متد analyze_search_samples() درصد 20 را از SearchConfig می‌خواند، ولی تعداد واقعی را از inspected_train_samples می‌گیرد.
+
+بنابراین گزارش ممکن است چنین چیزی نشان دهد:
+- درصد تنظیم‌شده: 20%
+- تعداد مورد انتظار: 588
+- تعداد انتخاب‌شده: 2941
+این تناقض ناشی از آن است که دو مفهوم متفاوت با یکدیگر مقایسه شده‌اند:
+1. Dataset Inspection Sampling: درصد داده‌ای که ابزار گزارش‌گیری بررسی می‌کند.
+2. DARTS Search Sampling: درصد داده‌ای که واقعاً در مرحله جست‌وجوی معماری استفاده می‌شود.
+این دو باید کاملاً مستقل گزارش شوند.
+
+پیشنهاد: برای Search واقعی، بهتر است metadata مربوط به subset انتخاب‌شده در زمان اجرای DARTS ذخیره شود؛ DataSummery نباید از روی درصد تنظیم‌شده، تعداد واقعی استفاده‌شده را حدس بزند.
+
+۶. وضعیت READY بیش از حد خوش‌بینانه است
+کد فعلی:
+if invalid_cnt == 0 and nans == 0:    dataset_status = "READY"
+
+
+
+این شرط بسیار ضعیف است.
+
+ممکن است:
+- همه trajectoryها عددی باشند، ولی timestamp نداشته باشند.
+- تمام neighborها از عامل‌های static انتخاب شده باشند.
+- HD Map فاقد layer type باشد.
+- static objects اصلاً استخراج نشده باشند.
+- Search subset اشتباه باشد.
+- Scene leakage وجود داشته باشد.
+- داده‌ها در coordinate frameهای متفاوت ذخیره شده باشند.
+با این حال گزارش READY صادر شود.
+
+پیشنهاد می‌کنم وضعیت نهایی بر اساس چند معیار مستقل تعیین شود:
+معیار	شرط
+Temporal	طول و ترتیب زمانی معتبر
+Interaction	ساختار همسایگان و mask معتبر
+Static Objects	استخراج و ساختار معتبر، در صورت فعال بودن modality
+HD Map	هندسه و نوع لایه معتبر
+Data Integrity	بدون NaN، Inf و کلیدهای تکراری غیرمجاز
+Split Integrity	بدون Scene leakage
+Search Configuration	تعداد واقعی و درصد انتخاب معتبر
+Metadata	منبع داده و نسخه مشخص
+
+به‌جای یک وضعیت ساده، خروجی باید وضعیت هر بخش را جداگانه نشان دهد و وضعیت نهایی را از آن‌ها استنتاج کند.
+
+۷. ایرادات مهم در DataConfig
+تنظیمات فعلی:
+max_train_scenes: Optional[int] = 10max_val_scenes: Optional[int] = 5
+
+
+
+با توجه به اینکه در گزارش قبلی فقط شهر singapore-onenorth مشاهده شده بود، این محدودیت احتمالاً یکی از دلایل محدود شدن تنوع مکانی دیتاست است.
+
+برای ارزیابی علمی و آزمایش نهایی پیشنهاد می‌کنم:
+max_train_scenes = Nonemax_val_scenes = None
+
+
+
+البته این کار به معنی استفاده از تمام sceneهاست و باید با ظرفیت حافظه و زمان استخراج هماهنگ شود.
+
+نکته مهم دیگر، تنظیمات سخت‌افزاری ابتدای فایل است.
+
+نیازمند اصلاح
+ مقادیر batch_size=32 و batch_size=64 صرفاً با داشتن RTX 4060 Ti و RAM 32GB تضمین نمی‌شوند. به‌خصوص با چهار شاخه Temporal، Dynamic، Static و HD Map، مصرف حافظه به تعداد عملگرهای SuperNet، ابعاد featureها و پیاده‌سازی Mixed Operation بستگی دارد.
+
+همچنین Gradient Accumulation اندازه batch مؤثر را افزایش می‌دهد، اما مصرف حافظه forward/backward هر batch فیزیکی را به اندازه batch مؤثر کاهش نمی‌دهد.
+
+۸. اولویت‌بندی اصلاحات
+اولویت	بخش	اصلاح ضروری
+P0	DataSummery	حذف تولید خودکار Mock Data
+P0	Data Quality	اصلاح تعریف Duplicate
+P0	Temporal	استفاده از timestamp واقعی
+P0	Search	تفکیک Inspection Sampling از DARTS Sampling
+P0	Validation	اصلاح منطق READY
+P1	Interaction	اصلاح آمار category و فاصله همسایگان
+P1	HD Map	حفظ layer type و محاسبه هندسی فاصله
+P1	Split	اصلاح منطق Scene و Sample Key
+P1	Data Quality	اعتبارسنجی همه modalityها و maskها
+P2	DataConfig	استفاده از تمام sceneها برای ارزیابی نهایی
+
+
+۹. یک نکته مهم درباره فایل‌های پروژه
+در حال حاضر از فایل‌های ارائه‌شده، می‌توانم منطق گزارش‌گیری را بررسی کنم؛ اما برای تأیید اینکه گزارش واقعاً با داده‌هایی که DARTS مصرف می‌کند مطابقت دارد، باید این سه بخش با هم بررسی شوند:
+1. prepare_data.py — استخراج و ذخیره‌سازی داده‌ها
+2. nuscenes_dataset.py — بارگذاری، تبدیل به Tensor، padding و mask
+3. data_summery.py — محاسبه آمار و اعتبارسنجی
+نتیجه: پیشنهاد می‌کنم پیش از شروع جست‌وجوی معماری، ابتدا DataSummery را اصلاح کنیم. در غیر این صورت ممکن است با وجود گزارش READY، آزمایش‌های DARTS بر مبنای آمار اشتباه یا داده ناقص انجام شوند.

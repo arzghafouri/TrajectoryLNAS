@@ -10,6 +10,9 @@
 ```
 python_src/
 ├── data/
+│   ├── prepare_data.py        # خط‌لوله مهندسی‌شده استخراج داده‌های واقعی nuScenes (نرخ 10Hz، درون‌یابی دقیق، لایه‌های نقشه، موانع ثابت)
+│   ├── data_summery.py        # ارزیابی آماری و اعتبارسنجی کیفیت، نرخ نمونه‌برداری و یکپارچگی داده‌های استخراج‌شده
+│   ├── test_acceptance.py     # سوئیت جامع آزمون‌های اعتبارسنجی فنی ۷ گانه خط‌لوله داده، گرادیان و سوپرنت
 │   ├── argoverse_dataset.py   # لودر اختصاصی Argoverse v1 (خواندن CSVها، دوران خودرومحور، پلی‌لاین‌های معابر)
 │   ├── nuscenes_dataset.py    # لودر اختصاصی nuScenes Prediction Benchmark (درون‌یابی به 10Hz و تبدیل مختصات)
 │   └── data_factory.py        # کارخانه یکپارچه DataLoader و تنظیم آدرس‌های پیش‌فرض
@@ -18,9 +21,13 @@ python_src/
 │   ├── search_supernet.py     # شبکه فراگیر (Super-Net) و پارامترهای معماری ArchParams
 │   └── final_model.py         # معماری استخراج‌شده گسسته (FinalTrajectoryModel)
 ├── utils.py                   # معیارهای ADE, FDE, Miss Rate, پروکسی‌های بدون هزینه (SNIP, SynFlow)
-├── search.py                  # فرآیند بهینه‌سازی دوسطحی مشتق‌پذیر DARTS با جریمه FLOPs
-├── train_final.py             # آموزش مدل نهایی استخراج‌شده از صفر با یادگیری بازپخش و کسینوسی
-├── evaluate.py                # مقایسه عملکرد با TrajectoryNAS, LaneGCN, Trajectron++
+├── train/
+│   ├── search.py              # فرآیند بهینه‌سازی دوسطحی مشتق‌پذیر DARTS با جریمه FLOPs
+│   └── train_final.py         # آموزش مدل نهایی استخراج‌شده از صفر با یادگیری بازپخش و کسینوسی
+├── evaluate/
+│   ├── evaluator.py           # مقایسه عملکرد با TrajectoryNAS, LaneGCN, Trajectron++
+│   ├── metrics.py             # محاسبات تحلیلی ADE/FDE/MissRate و Best-of-K Loss
+│   └── hardware_profiler.py   # سنجش تاخیر سخت‌افزاری، نرخ فریم (FPS) و FLOPs
 └── requirements.txt           # وابستگی‌های مورد نیاز
 ```
 

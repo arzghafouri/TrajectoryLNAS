@@ -1,0 +1,32 @@
+{
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/python_src",
+    "${workspaceFolder}/python_src/config",
+    "${workspaceFolder}/python_src/core",
+    "${workspaceFolder}/python_src/data",
+    "${workspaceFolder}/python_src/evaluate",
+    "${workspaceFolder}/python_src/models",
+    "${workspaceFolder}/python_src/train",
+    "./python_src",
+    "./python_src/config",
+    "./python_src/core",
+    "./python_src/data",
+    "./python_src/evaluate",
+    "./python_src/models",
+    "./python_src/train"
+  ],
+  "python.autoComplete.extraPaths": [
+    "${workspaceFolder}/python_src",
+    "${workspaceFolder}/python_src/config",
+    "${workspaceFolder}/python_src/core",
+    "${workspaceFolder}/python_src/data",
+    "${workspaceFolder}/python_src/evaluate",
+    "${workspaceFolder}/python_src/models",
+    "${workspaceFolder}/python_src/train",
+    "./python_src"
+  ],
+  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingImports": "none"
+  }
+}

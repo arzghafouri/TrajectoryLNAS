@@ -1,0 +1,170 @@
+{
+  "dataset_info": {
+    "dataset_name": "nuScenes Motion Prediction Benchmark",
+    "dataset_source": "https://www.nuscenes.org/download",
+    "dataset_root": "data/nuscenes",
+    "dataset_version": "v1.0-trainval",
+    "dataset_type": "Synthetic",
+    "real_samples": 0,
+    "synthetic_samples": 4000,
+    "fallback_activated": true,
+    "fallback_reason": "Explicit mock fallback initialized at data/nuscenes",
+    "total_samples": 4000,
+    "training_samples": 3200,
+    "validation_samples": 800,
+    "train_val_ratio": "3200:800",
+    "inspection_mode": "full",
+    "number_of_inspected_samples": 4000,
+    "inspection_percentage": 100.0,
+    "random_seed": 42
+  },
+  "sequence_availability": {
+    "temporal_sequences": {
+      "available_samples": 4000,
+      "percentage": 100.0
+    },
+    "interaction_sequences": {
+      "available_samples": 4000,
+      "percentage": 100.0
+    },
+    "hd_map_sequences": {
+      "available_samples": 4000,
+      "percentage": 100.0
+    },
+    "complete_sequences": {
+      "available_samples": 4000,
+      "percentage": 100.0
+    }
+  },
+  "temporal_statistics": {
+    "avg_past_timesteps": 20.0,
+    "avg_future_timesteps": 30.0,
+    "min_past_timesteps": 20,
+    "max_past_timesteps": 20,
+    "min_future_timesteps": 30,
+    "max_future_timesteps": 30,
+    "avg_past_duration_sec": 2.0,
+    "avg_future_duration_sec": 3.0,
+    "avg_sampling_interval_hz": 10.0,
+    "sampling_interval_std": 0.0,
+    "avg_past_trajectory_length_m": 19.15,
+    "avg_future_trajectory_length_m": 29.23,
+    "avg_past_displacement_m": 19.14,
+    "avg_future_displacement_m": 29.11,
+    "avg_target_speed_mps": 10.08,
+    "avg_target_accel_mps2": 0.49,
+    "valid_past_pct": 100.0,
+    "valid_future_pct": 100.0
+  },
+  "interaction_statistics": {
+    "avg_neighbors_per_agent": 2.51,
+    "min_neighbors_per_agent": 1,
+    "max_neighbors_per_agent": 4,
+    "avg_valid_neighbor_timesteps": 20.0,
+    "avg_neighbor_agent_distance_m": 13.22,
+    "avg_relative_speed_mps": 3.21,
+    "pct_samples_with_neighbors": 100.0,
+    "pct_samples_without_neighbors": 0.0,
+    "neighbor_category_distribution": {
+      "vehicle": 10045
+    }
+  },
+  "hd_map_statistics": {
+    "avg_hd_map_lanes": 6.0,
+    "min_hd_map_lanes": 6,
+    "max_hd_map_lanes": 6,
+    "avg_points_per_lane": 2.0,
+    "min_points_per_lane": 2,
+    "max_points_per_lane": 2,
+    "avg_total_map_points_per_sequence": 12.0,
+    "avg_lane_length_m": 60.0,
+    "avg_distance_to_nearest_lane_m": 29.94,
+    "pct_samples_with_valid_hd_map": 100.0,
+    "pct_samples_without_hd_map": 0.0,
+    "lane_category_distribution": {
+      "lane": 0,
+      "lane_connector": 0,
+      "walkway": 0,
+      "ped_crossing": 0,
+      "road_divider": 0,
+      "drivable_area": 24000
+    }
+  },
+  "category_distribution": {
+    "categories": [
+      {
+        "category": "vehicle",
+        "train_count": 3200,
+        "train_pct": 100.0,
+        "val_count": 800,
+        "val_pct": 100.0,
+        "total_count": 4000
+      }
+    ]
+  },
+  "search_configuration": {
+    "configured_search_samples_percent": 20.0,
+    "total_available_training_samples": 3200,
+    "expected_search_samples": 640,
+    "actual_inspected_train_samples": 3200,
+    "inspection_percentage": 100.0,
+    "validation_samples_used_during_search": 800,
+    "sampling_strategy": "Uniform Deterministic Stratified Shuffling",
+    "random_seed": 42
+  },
+  "data_quality": {
+    "total_samples_inspected": 4000,
+    "valid_samples": 4000,
+    "invalid_samples": 0,
+    "missing_temporal_data": 0,
+    "missing_interaction_data": 0,
+    "missing_hd_map_data": 0,
+    "nan_values": 0,
+    "infinite_values": 0,
+    "invalid_coordinates": 0,
+    "empty_trajectories": 0,
+    "invalid_trajectory_lengths": 0,
+    "duplicate_samples": 0,
+    "invalid_category_labels": 0,
+    "invalid_masks": 0,
+    "filtered_samples": 0
+  },
+  "split_summary": {
+    "total_dataset_samples": 4000,
+    "training_samples": 3200,
+    "validation_samples": 800,
+    "training_percentage": 80.0,
+    "validation_percentage": 20.0,
+    "duplicate_samples_across_splits": 0,
+    "shared_scenes_count": 0,
+    "train_cities": [
+      "boston-seaport",
+      "singapore-hollandvillage",
+      "singapore-onenorth",
+      "singapore-queenstown"
+    ],
+    "val_cities": [
+      "boston-seaport",
+      "singapore-hollandvillage",
+      "singapore-onenorth",
+      "singapore-queenstown"
+    ],
+    "scene_leakage_status": "PASSED (Strict Scene Separation)"
+  },
+  "timestamp": "20261024_132634",
+  "final_summary": {
+    "dataset_status": "READY",
+    "total_samples": 4000,
+    "training_samples": 3200,
+    "validation_samples": 800,
+    "temporal_data_availability": "100.0%",
+    "interaction_data_availability": "100.0%",
+    "hd_map_data_availability": "100.0%",
+    "complete_valid_samples": 4000,
+    "invalid_samples": 0,
+    "filtered_samples": 0,
+    "synthetic_data_detected": true,
+    "fallback_activated": true,
+    "important_warnings": []
+  }
+}

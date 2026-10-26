@@ -7,10 +7,18 @@ Supports multi-agent interactions, vectorized HD maps, and multi-modal trajector
 
 import math
 import time
+import os
+import sys
 import torch
 import torch.nn as nn
 from torch.optim import Adam
 from typing import Dict, Any, Tuple
+
+# Ensure python_src directory is in sys.path
+_curr_dir = os.path.dirname(os.path.abspath(__file__))
+_parent_dir = os.path.dirname(_curr_dir)
+if _parent_dir not in sys.path:
+    sys.path.insert(0, _parent_dir)
 
 from core.base_trainer import BaseTrainer
 from config.search_config import SearchConfig, ModelConfig
@@ -119,6 +127,18 @@ class DARTSSearcher(BaseTrainer):
             if map_lanes is not None and hasattr(map_lanes, "to"):
                 map_lanes = map_lanes.to(self.device)
 
+            category_id = batch.get("category_id", None)
+            if category_id is not None and hasattr(category_id, "to"):
+                category_id = category_id.to(self.device)
+
+            map_lane_types = batch.get("map_lane_types", None)
+            if map_lane_types is not None and hasattr(map_lane_types, "to"):
+                map_lane_types = map_lane_types.to(self.device)
+
+            neighbor_categories = batch.get("neighbor_categories", None)
+            if neighbor_categories is not None and hasattr(neighbor_categories, "to"):
+                neighbor_categories = neighbor_categories.to(self.device)
+
             alphas_dict = self.arch_params.softmax_all(temperature=temperature)
 
             try:
@@ -128,7 +148,9 @@ class DARTSSearcher(BaseTrainer):
 
             with autocast_ctx:
                 pred_trajs, mode_logits = self.supernet(
-                    past, alphas_dict, agents_past=agents_past, map_lanes=map_lanes
+                    past, alphas_dict, agents_past=agents_past, map_lanes=map_lanes,
+                    category_id=category_id, map_lane_types=map_lane_types,
+                    neighbor_categories=neighbor_categories
                 )
                 loss_reg, loss_cls = best_of_k_loss(pred_trajs, future, mode_logits)
                 loss_w = (loss_reg + 0.1 * loss_cls) / self.grad_accum_steps
@@ -185,11 +207,25 @@ class DARTSSearcher(BaseTrainer):
             if map_lanes is not None and hasattr(map_lanes, "to"):
                 map_lanes = map_lanes.to(self.device)
 
+            category_id = val_batch.get("category_id", None)
+            if category_id is not None and hasattr(category_id, "to"):
+                category_id = category_id.to(self.device)
+
+            map_lane_types = val_batch.get("map_lane_types", None)
+            if map_lane_types is not None and hasattr(map_lane_types, "to"):
+                map_lane_types = map_lane_types.to(self.device)
+
+            neighbor_categories = val_batch.get("neighbor_categories", None)
+            if neighbor_categories is not None and hasattr(neighbor_categories, "to"):
+                neighbor_categories = neighbor_categories.to(self.device)
+
             alphas_dict = self.arch_params.softmax_all(temperature=temperature)
 
             with torch.set_grad_enabled(not is_warmup):
                 pred_trajs, mode_logits = self.supernet(
-                    past, alphas_dict, agents_past=agents_past, map_lanes=map_lanes
+                    past, alphas_dict, agents_past=agents_past, map_lanes=map_lanes,
+                    category_id=category_id, map_lane_types=map_lane_types,
+                    neighbor_categories=neighbor_categories
                 )
                 val_loss_ade = min_ade_k(pred_trajs, future, k=6)
                 val_loss_fde = min_fde_k(pred_trajs, future, k=6)

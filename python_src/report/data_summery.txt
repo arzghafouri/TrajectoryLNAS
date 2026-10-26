@@ -1,0 +1,103 @@
+================================================================================
+TRAJECTORYLNAS COMPREHENSIVE DATASET STATISTICS REPORT
+================================================================================
+Timestamp               : 20261024_132634
+Dataset Name            : nuScenes Motion Prediction Benchmark
+Dataset Version         : v1.0-trainval
+Dataset Root Path       : data/nuscenes
+Dataset Type            : Synthetic (Real: 0, Synthetic: 4000)
+Status                  : READY
+
+[1] DATASET INFORMATION
+--------------------------------------------------------------------------------
+Total Samples           : 4,000
+Training Samples        : 3,200
+Validation Samples      : 800
+Train/Val Ratio         : 3200:800
+Inspection Mode         : full
+Inspected Samples       : 4,000 (100.0%)
+Random Seed             : 42
+Fallback Activated      : True (Explicit mock fallback initialized at data/nuscenes)
+
+[2] SEQUENCE AVAILABILITY
+--------------------------------------------------------------------------------
+Temporal Sequences      : 4,000 (100.0%)
+Interaction Sequences   : 4,000 (100.0%)
+HD Map Sequences        : 4,000 (100.0%)
+Complete Sequences      : 4,000 (100.0%)
+
+[3] TEMPORAL SEQUENCE STATISTICS
+--------------------------------------------------------------------------------
+Past Timesteps          : Avg 20.0 | Min 20 | Max 20
+Future Timesteps        : Avg 30.0 | Min 30 | Max 30
+Past Duration (s)       : Avg 2.0s
+Future Duration (s)     : Avg 3.0s
+Sampling Interval       : 10.0 Hz (Std: 0.0)
+Past Trajectory Length  : Avg 19.15 m
+Future Trajectory Length: Avg 29.23 m
+Past Displacement       : Avg 19.14 m
+Future Displacement     : Avg 29.11 m
+Target Agent Speed      : Avg 10.08 m/s
+Target Agent Accel      : Avg 0.49 m/s²
+Valid Trajectories      : Past 100.0% | Future 100.0%
+
+[4] INTERACTION SEQUENCE STATISTICS
+--------------------------------------------------------------------------------
+Avg Neighbors / Agent   : 2.51 (Min: 1, Max: 4)
+Valid Neighbor Timesteps: Avg 20.0
+Neighbor-Agent Distance : Avg 13.22 m
+Relative Speed          : Avg 3.21 m/s
+Samples w/ Neighbors    : 100.0%
+Samples w/o Neighbors   : 0.0%
+
+[5] HD MAP SEQUENCE STATISTICS
+--------------------------------------------------------------------------------
+Avg HD Map Lanes        : 6.0 (Min: 6, Max: 6)
+Points Per Lane         : Avg 2.0 (Min: 2, Max: 2)
+Total Points / Sequence : Avg 12.0
+Average Lane Length     : Avg 60.0 m
+Nearest Lane Distance   : Avg 29.94 m
+Valid HD Map Samples    : 100.0%
+
+[6] CATEGORY DISTRIBUTION
+--------------------------------------------------------------------------------
+  - vehicle             : Train  3200 (100.0%) | Val   800 (100.0%) | Total   4000
+
+[7] SEARCH CONFIGURATION AND SAMPLE SELECTION
+--------------------------------------------------------------------------------
+Configured Search Target: 640 (20.0%)
+Available Train Samples : 3,200
+Inspected Train Samples : 3,200 (100.0%)
+Search Val Samples Used : 800
+Sampling Strategy       : Uniform Deterministic Stratified Shuffling
+
+[8] DATA QUALITY AND VALIDATION
+--------------------------------------------------------------------------------
+Total Inspected         : 4,000
+Valid Samples           : 4,000
+Invalid Samples         : 0
+Missing Temporal Data   : 0
+Missing Interaction Data: 0
+Missing HD Map Data     : 0
+NaN Values              : 0
+Infinite Values         : 0
+Invalid Coordinates     : 0
+Empty Trajectories      : 0
+Duplicate Samples       : 0
+
+[9] TRAIN / VALIDATION SPLIT SUMMARY
+--------------------------------------------------------------------------------
+Training Samples        : 3,200 (80.0%)
+Validation Samples      : 800 (20.0%)
+Cross-Split Duplicates  : 0
+Scene Leakage Status    : PASSED (Strict Scene Separation)
+Training Cities         : boston-seaport, singapore-hollandvillage, singapore-onenorth, singapore-queenstown
+Validation Cities       : boston-seaport, singapore-hollandvillage, singapore-onenorth, singapore-queenstown
+
+[10] FINAL DATASET SUMMARY
+--------------------------------------------------------------------------------
+Dataset Status          : READY
+Synthetic Data Detected : True
+Fallback Activated      : True
+Important Warnings      : None
+================================================================================

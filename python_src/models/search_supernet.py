@@ -59,10 +59,11 @@ class SearchSuperNet(nn.Module):
         self.max_lanes = max_lanes
         self.lane_pts = lane_pts
 
-        # Coordinate embedding layers
-        self.input_proj = nn.Linear(2, d_model)
-        self.neighbor_proj = nn.Linear(2, d_model)
-        self.map_encoder = PolylineEncoder(in_channels=2, d_model=d_model)
+        # Coordinate and kinematic embedding layers
+        self.input_proj = nn.Linear(4, d_model)
+        self.neighbor_proj = nn.Linear(4, d_model)
+        self.category_emb = nn.Embedding(10, d_model)
+        self.map_encoder = PolylineEncoder(in_channels=4, d_model=d_model)
 
         # 3 Dedicated Domain-Aware Search Branches
         self.temporal_branch = TemporalMixedOp(d_model)
@@ -92,14 +93,20 @@ class SearchSuperNet(nn.Module):
         past: torch.Tensor,
         alphas_tuple: tuple,
         agents_past: torch.Tensor = None,
-        map_lanes: torch.Tensor = None
+        map_lanes: torch.Tensor = None,
+        category_id: torch.Tensor = None,
+        map_lane_types: torch.Tensor = None,
+        neighbor_categories: torch.Tensor = None
     ):
         """
         Continuous forward pass weighting each operator by its architectural alpha.
-        past: [B, T_past, 2] or [B, T_past, Agents, 2]
+        past: [B, T_past, 2 or 4] or [B, T_past, Agents, 2 or 4]
         alphas_tuple: (alpha_temp, alpha_inter, alpha_map)
-        agents_past: [B, T_past, N_agents, 2] (optional surrounding agents history)
-        map_lanes: [B, N_lanes, lane_pts, 2] (optional vectorized lane polylines)
+        agents_past: [B, T_past, N_agents, 2 or 4] (optional surrounding agents history)
+        map_lanes: [B, N_lanes, lane_pts, 2 or 4] (optional vectorized lane polylines)
+        category_id: [B] (optional agent class ID)
+        map_lane_types: [B, N_lanes] (optional lane type ID)
+        neighbor_categories: [B, N_agents] (optional neighbor class IDs)
         
         Returns:
             pred_trajectories: [B, K, future_len, 2]
@@ -111,10 +118,24 @@ class SearchSuperNet(nn.Module):
                 agents_past = past
             past = past[:, :, 0, :]
 
-        B, T_past, _ = past.shape
+        B, T_past, C_past = past.shape
 
-        # 1. Target ego coordinate embedding
-        target_feat = self.input_proj(past)  # [B, T_past, d_model]
+        # 1. Target ego coordinate and kinematic velocity embedding
+        if C_past == 2:
+            vel = torch.zeros_like(past)
+            vel[:, 1:, :] = past[:, 1:, :] - past[:, :-1, :]
+            vel[:, 0, :] = vel[:, 1, :]
+            kinematic_past = torch.cat([past, vel], dim=-1) # [B, T_past, 4]
+        else:
+            kinematic_past = past
+
+        target_feat = self.input_proj(kinematic_past)  # [B, T_past, d_model]
+
+        # Inject Agent Category semantics if available
+        if category_id is not None:
+            cat_idx = category_id.view(B).clamp(0, 9)
+            cat_feat = self.category_emb(cat_idx).unsqueeze(1) # [B, 1, d_model]
+            target_feat = target_feat + cat_feat
 
         # 2. Surrounding agents processing
         neighbor_feats = None
@@ -122,17 +143,33 @@ class SearchSuperNet(nn.Module):
         agent_pos = None
 
         if agents_past is not None and agents_past.dim() == 4:
-            # agents_past: [B, T_past, N, 2]
+            # agents_past: [B, T_past, N, C]
             N = agents_past.shape[2]
             # Detect valid agents (non-zero padded)
             agent_mask = (agents_past.abs().sum(dim=(1, 3)) > 1e-4) # [B, N]
             agent_mask[:, 0] = True # Target ego is always valid
 
-            # Embed neighbor coordinates
-            emb_neighbors = self.neighbor_proj(agents_past) # [B, T, N, d_model]
+            if agents_past.shape[-1] == 2:
+                n_vel = torch.zeros_like(agents_past)
+                n_vel[:, 1:, :, :] = agents_past[:, 1:, :, :] - agents_past[:, :-1, :, :]
+                n_vel[:, 0, :, :] = n_vel[:, 1, :, :]
+                kinematic_agents = torch.cat([agents_past, n_vel], dim=-1) # [B, T, N, 4]
+            else:
+                kinematic_agents = agents_past
+
+            # Embed neighbor coordinates and kinematics
+            emb_neighbors = self.neighbor_proj(kinematic_agents) # [B, T, N, d_model]
             # Observation timestamp features + temporal pooling
             neighbor_feats = emb_neighbors.mean(dim=1) # [B, N, d_model]
-            agent_pos = agents_past[:, -1, :, :] # [B, N, 2] positions at observation t=19
+
+            # Inject Neighbor Category semantics if available
+            if neighbor_categories is not None and neighbor_categories.shape == (B, N):
+                n_cat_feat = self.category_emb(neighbor_categories.clamp(0, 9)) # [B, N, d_model]
+                neighbor_feats = neighbor_feats + n_cat_feat
+
+            # Strictly zero-out padded/inactive neighbors to prevent any feature leakage
+            neighbor_feats = neighbor_feats * agent_mask.unsqueeze(-1).float()
+            agent_pos = agents_past[:, -1, :, :2] # [B, N, 2] positions at observation t=19
         else:
             # Fallback for standalone / unit tests
             neighbor_feats = target_feat.mean(dim=1, keepdim=True) # [B, 1, d_model]
@@ -143,9 +180,10 @@ class SearchSuperNet(nn.Module):
         lane_mask = None
 
         if map_lanes is not None and map_lanes.dim() == 4:
-            # map_lanes: [B, N_lanes, lane_pts, 2]
+            # map_lanes: [B, N_lanes, lane_pts, 2 or 4]
             lane_mask = (map_lanes.abs().sum(dim=(2, 3)) > 1e-4) # [B, N_lanes]
-            lane_feats = self.map_encoder(map_lanes) # [B, N_lanes, d_model]
+            lane_feats = self.map_encoder(map_lanes, lane_types=map_lane_types) # [B, N_lanes, d_model]
+            lane_feats = lane_feats * lane_mask.unsqueeze(-1).float()
         else:
             # Fallback for standalone / unit tests
             lane_feats = target_feat.mean(dim=1, keepdim=True) # [B, 1, d_model]
@@ -188,12 +226,17 @@ class SearchSuperNet(nn.Module):
             "interaction": self.interaction_branch.get_ops_flops(self.past_len, num_agents=self.max_agents),
             "map": self.map_branch.get_ops_flops(self.past_len, num_lanes=self.max_lanes),
             "base": (
-                2 * self.past_len * 2 * self.d_model  # input_proj
-                + 2 * self.past_len * self.max_agents * 2 * self.d_model # neighbor_proj
-                + self.map_encoder.get_flops(self.max_lanes, self.lane_pts, self.d_model) # map_encoder
+                2 * self.past_len * 4 * self.d_model  # input_proj (4 channels: x, y, vx, vy)
+                + 2 * self.past_len * self.max_agents * 4 * self.d_model # neighbor_proj (4 channels)
+                + self.map_encoder.get_flops(self.max_lanes, self.lane_pts, self.d_model) # map_encoder (in_channels=4)
                 + 2 * self.past_len * 3 * self.d_model * self.d_model  # fusion
                 + self.future_len * 3 * (2 * self.d_model * self.d_model)  # decoder
                 + 2 * self.future_len * self.d_model * (self.num_modes * 2)  # out_proj
                 + 2 * self.d_model * self.d_model + 2 * self.d_model * self.num_modes # prob_head
             )
         }
+
+
+# Class alias for backward compatibility and case variations
+SearchSupernet = SearchSuperNet
+

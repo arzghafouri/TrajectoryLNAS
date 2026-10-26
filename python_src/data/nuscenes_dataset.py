@@ -76,7 +76,10 @@ class NuScenesPredictionDataset(Dataset):
         self.lane_pts = lane_pts
         self.sample_percent = sample_percent
 
-        self.samples_file = os.path.join(data_dir, f"{split}_sequences.json")
+        if os.path.isfile(data_dir):
+            self.samples_file = data_dir
+        else:
+            self.samples_file = os.path.join(data_dir, f"{split}_sequences.json")
 
         if not os.path.exists(self.samples_file):
             if generate_mock_if_missing:
@@ -173,11 +176,47 @@ class NuScenesPredictionDataset(Dataset):
 
         map_lanes_tensor = np.stack(lanes_list, axis=0) # [max_lanes, lane_pts, 2]
 
+        # Canonical category mapping
+        cat_map = {
+            "vehicle.car": 0, "vehicle.truck": 1, "vehicle.bus.rigid": 2, "vehicle.bus.bendy": 2,
+            "vehicle.motorcycle": 3, "vehicle.bicycle": 4, "vehicle.trailer": 5, "vehicle.construction": 6,
+            "vehicle.emergency.police": 1, "vehicle.emergency.ambulance": 1,
+            "human.pedestrian.adult": 7, "human.pedestrian.child": 7, "human.pedestrian.construction_worker": 7,
+            "human.pedestrian.police_officer": 7, "human.pedestrian.personal_mobility": 8,
+            "human.pedestrian.stroller": 8, "human.pedestrian.wheelchair": 8
+        }
+        lane_type_map = {"lane": 0, "lane_connector": 1, "connector": 1, "walkway": 2, "ped_crossing": 2, "divider": 3}
+
+        # Target agent category ID
+        raw_cat = item.get("category", "vehicle.car")
+        cat_id = cat_map.get(raw_cat, 7 if ("human" in raw_cat or "pedestrian" in raw_cat) else 0)
+
+        # Surrounding agent category IDs
+        raw_neighbor_cats = item.get("neighbor_categories", [])
+        neighbor_cat_ids = [cat_id] # index 0 is target ego
+        for nc in raw_neighbor_cats[:self.max_agents - 1]:
+            nc_str = str(nc)
+            nc_id = cat_map.get(nc_str, 7 if ("human" in nc_str or "pedestrian" in nc_str) else 0)
+            neighbor_cat_ids.append(nc_id)
+        while len(neighbor_cat_ids) < self.max_agents:
+            neighbor_cat_ids.append(0)
+
+        # Map lane types
+        raw_lane_types = item.get("map_lane_types", [])
+        lane_type_ids = []
+        for lt in raw_lane_types[:self.max_lanes]:
+            lane_type_ids.append(lane_type_map.get(str(lt), 0))
+        while len(lane_type_ids) < self.max_lanes:
+            lane_type_ids.append(0)
+
         return {
             "past": torch.tensor(norm_past, dtype=torch.float32),                 # [20, 2]
             "future": torch.tensor(norm_future, dtype=torch.float32),             # [30, 2]
             "agents_past": torch.tensor(agents_tensor, dtype=torch.float32),      # [20, N, 2]
             "map_lanes": torch.tensor(map_lanes_tensor, dtype=torch.float32),     # [L, 10, 2]
+            "category_id": torch.tensor(cat_id, dtype=torch.long),                # scalar
+            "neighbor_categories": torch.tensor(neighbor_cat_ids, dtype=torch.long), # [N]
+            "map_lane_types": torch.tensor(lane_type_ids, dtype=torch.long),      # [L]
             "origin": torch.tensor(origin, dtype=torch.float32),                  # [2]
             "heading": torch.tensor(heading, dtype=torch.float32),                # [1]
             "instance_token": item.get("instance_token", f"token_{idx}"),
@@ -186,7 +225,9 @@ class NuScenesPredictionDataset(Dataset):
 
     def _generate_mock_nuscenes_data(self, output_path, count=6400):
         """Generates realistic mock nuScenes trajectory sequences with simulated HD map lanes."""
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        target_dir = os.path.dirname(os.path.abspath(output_path))
+        if target_dir:
+            os.makedirs(target_dir, exist_ok=True)
         items = []
 
         cities = ["singapore-onenorth", "boston-seaport", "singapore-queenstown", "singapore-hollandvillage"]
@@ -216,6 +257,7 @@ class NuScenesPredictionDataset(Dataset):
 
             # 2 neighbor vehicles
             neighbors = []
+            neighbor_cats = []
             num_neighbors = rng.randint(1, 4)
             for n in range(num_neighbors):
                 nx = past_traj[0][0] + rng.uniform(-15.0, 15.0)
@@ -227,22 +269,28 @@ class NuScenesPredictionDataset(Dataset):
                     nx += n_speed * 0.1 * math.cos(heading)
                     ny += n_speed * 0.1 * math.sin(heading)
                 neighbors.append(n_pts)
+                neighbor_cats.append(rng.choice(["vehicle.car", "vehicle.truck", "human.pedestrian.adult"]))
 
             # Map lanes
             map_lanes = []
+            lane_types = []
             for lane_idx in range(6):
                 lane_offset = (lane_idx - 2.5) * 3.5
                 p1 = [round(past_traj[-1][0] + lane_offset, 2), round(past_traj[-1][1] - 30.0, 2)]
                 p2 = [round(p1[0] + 60.0 * math.cos(heading), 2), round(p1[1] + 60.0 * math.sin(heading), 2)]
                 map_lanes.append([p1, p2])
+                lane_types.append(rng.choice(["lane", "lane_connector"]))
 
             items.append({
                 "instance_token": f"nu_token_{i:06d}",
                 "city": cities[i % len(cities)],
+                "category": rng.choice(["vehicle.car", "vehicle.truck", "human.pedestrian.adult", "vehicle.motorcycle"]),
                 "past_traj": past_traj,
                 "future_traj": future_traj,
                 "neighbors_past": neighbors,
-                "map_lanes": map_lanes
+                "neighbor_categories": neighbor_cats,
+                "map_lanes": map_lanes,
+                "map_lane_types": lane_types
             })
 
         rng.shuffle(items)
